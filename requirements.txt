@@ -1,0 +1,15 @@
+# Kamp Finances - Scouting Trip Finance Manager
+# Python dependencies
+
+# Core dependencies (all built-in to Python 3.7+)
+# tkinter - GUI framework (built-in)
+# json - Data serialization (built-in)
+# os - Operating system interface (built-in)
+# datetime - Date and time handling (built-in)
+# typing - Type hints (built-in)
+# dataclasses - Data classes (built-in, Python 3.7+)
+# enum - Enumerations (built-in)
+# re - Regular expressions (built-in)
+
+# No external dependencies required!
+# This application uses only Python standard library modules. 

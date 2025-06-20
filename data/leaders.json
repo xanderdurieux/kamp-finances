@@ -1,0 +1,12 @@
+[
+  {
+    "id": "20250621_013255",
+    "name": "Xander",
+    "phone_number": "987654321",
+    "email": "xander@example.com",
+    "total_pa_expenses": 0.0,
+    "poef_drink_count": 5,
+    "poef_price_per_drink": 0.75,
+    "pa_purchases": []
+  }
+]
