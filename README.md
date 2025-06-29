@@ -2,438 +2,235 @@
 
 A Python desktop application designed to help manage finances during scouting trips, specifically for tracking daily grocery expenses, personal purchases (PA), and fridge drink consumption (POEF).
 
-## Features
+## 📁 Project Structure
 
-### 🛒 Receipt Management
-- Enter daily store receipts from Colruyt or other stores
+```
+kamp-finances/
+├── src/                          # Source code directory
+│   ├── main.py                   # Main application entry point
+│   ├── models/                   # Data models
+│   │   ├── leader.py            # Leader model with POEF tracking
+│   │   ├── receipt.py           # Receipt model with expense items
+│   │   └── expense.py           # Expense model with categories
+│   ├── services/                 # Business logic services
+│   │   ├── data_service.py      # Data persistence and CSV handling
+│   │   └── finance_service.py   # Financial calculations and reporting
+│   └── ui/                      # User interface components
+│       ├── main_window.py       # Main application window with tabs
+│       ├── base_components.py   # Reusable UI components
+│       ├── leaders_tab.py       # Leaders management tab
+│       ├── pa_tab.py           # PA items assignment tab
+│       ├── poef_tab.py         # POEF tracking tab
+│       └── receipts_tab.py     # Receipts management tab
+├── data/                        # Data storage directory
+│   ├── leaders.csv             # Leaders data file
+│   └── receipts.csv            # Receipts data file
+├── dist/                       # Built executable (after build)
+├── venv/                       # Python virtual environment
+├── run.py                      # Application launcher script
+├── requirements.txt            # Python dependencies (none external)
+├── kamp_finances.spec          # PyInstaller specification file
+├── build.sh                    # Build script for executable
+├── test_executable.sh          # Test script for built executable
+└── README.md                   # This file
+```
+
+## 🏗️ Architecture & Components
+
+### Data Models (`src/models/`)
+- **Leader**: Manages leader information, POEF counts, and PA purchases
+- **Receipt**: Handles store receipts with date, store name, and expense items
+- **Expense**: Represents individual items with price, quantity, and category
+
+### Services (`src/services/`)
+- **DataService**: Handles CSV file operations, data persistence, and serialization
+- **FinanceService**: Provides financial calculations, reporting, and summary generation
+
+### User Interface (`src/ui/`)
+- **MainWindow**: Tabbed interface container with automatic data refresh
+- **BaseComponents**: Reusable UI components (DataTable, FormDialog, ActionButton)
+- **Tab Components**: Specialized tabs for each functional area
+
+### Key Features
+
+#### 🛒 Receipt Management
+- Add, edit, and remove daily store receipts from Colruyt or other stores
 - Categorize items into three expense types:
   - **Groepskas**: Group account expenses
   - **POEF**: Fridge drinks (tracked separately)
   - **PA**: Personal purchases for individual leaders
-- Add/edit receipts with store and date information
+- Add, edit, and remove individual expenses within receipts
 - Automatic total calculations by category
+- Confirmation dialogs for safe deletion operations
+- Compact receipt list showing date, store, and total
 
-### 👥 Leader Management
-- Add and manage scouting leaders
+#### 👥 Leader Management
+- Add, edit, and remove scouting leaders
 - Track personal expenses for each leader
-- Update POEF drink and cigarette counts with increment/decrement buttons
-- Generate individual leader reports
-- Generate global summary reports
-- View detailed expense breakdowns
+- Update POEF drink and cigarette counts with increment/decrement buttons (+/-)
+- Direct entry of POEF counts with auto-save on focus out or Enter key
+- Real-time total calculations for drinks and cigarettes
+- Generate individual leader reports with detailed breakdowns
+- Export leader summaries to TXT and CSV formats
+- Detailed expense breakdown showing shared PA items and costs
+- Selection preservation when updating POEF counts
 
-### 📦 PA Items Management
-- View all PA items from receipts
-- Efficient assignment system with dynamic leader entries
-- Assign PA items to multiple leaders
-- Track assignment status and counts
+#### 📦 PA Items Management
+- View all PA items from receipts with assigned leader information
+- Dynamic assignment system with add/remove leader entries
+- Assign PA items to multiple leaders with automatic cost splitting
 - Auto-save assignments when selections change
+- Track assignment status and individual leader amounts
+- Visual feedback showing assigned leader names and their share amounts
+- Advanced assignment management dialog for bulk operations
+- Cost sharing: when multiple leaders share an item, cost is split equally
 
-### 🥤 POEF Tracking
+#### 🥤 POEF Tracking
+- View all POEF items from receipts with store and date information
 - Track drinks and cigarettes taken from the common fridge
-- Compare total bought vs total paid
-- Visual indicators for discrepancies
-- Bulk POEF count updates for all leaders
-- Comprehensive consumption tracking
+- Compare total bought vs total paid with visual indicators
+- Color-coded difference display (green=balanced, orange=overbought, red=underbought)
+- Comprehensive consumption tracking per leader
+- Real-time summary updates showing totals and discrepancies
 
-### 📊 Financial Summary & Reporting
-- Generate comprehensive expense reports
+#### 📊 Financial Summary & Reporting
+- Generate comprehensive expense reports for individual leaders
 - Calculate totals by category and leader
-- Export summaries for distribution
+- Export summaries for distribution (TXT and CSV formats)
 - Individual leader reports with detailed breakdowns
 - Global financial summaries
+- Detailed expense tracking with sharing information
 
-### 💾 Data Management
+#### 💾 Data Management
 - Automatic data persistence using CSV files
-- Real-time data validation
-- Changes in one tab reflected across all tabs
-- Comprehensive error handling
+- Real-time data validation and error handling
+- Changes in one tab reflected across all tabs automatically
+- Comprehensive error handling with user-friendly messages
+- Auto-save functionality - no manual save buttons needed
+- Data consistency maintained across all operations
+- Proper cleanup when removing receipts (removes PA assignments and CSV files)
 
-## Installation
+#### 🔄 User Experience
+- Tab-based interface with automatic data refresh on tab changes
+- Confirmation dialogs for all deletion operations
+- Selection preservation during data updates
+- Intuitive layout with clear sections and visual feedback
+- Status indicators and progress feedback
+- Error handling with clear user messages
+
+## 🚀 Installation & Usage
 
 ### Prerequisites
 - Python 3.7 or higher
-- No external dependencies required (uses only standard library)
+- No external dependencies required (uses only Python standard library)
 
-### Setup
-1. Clone or download the repository
-2. Navigate to the project directory
+### Development Setup
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd kamp-finances
+   ```
+
+2. Create a virtual environment (recommended):
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
 3. Run the application:
    ```bash
    python run.py
    ```
-   or
-   ```bash
-   python src/main.py
-   ```
 
-## Building the Executable
-
-### Prerequisites for Building
-- Python 3.8 or higher
-- Linux system (for Linux executable)
-
-### Quick Build
-
-1. **Run the build script:**
-   ```bash
-   ./build.sh
-   ```
-
-2. **The executable will be created at:**
-   ```
-   dist/KampFinances
-   ```
-
-3. **Run the application:**
-   ```bash
-   ./dist/KampFinances
-   ```
-
-### Manual Build Process
-
-If you prefer to build manually:
-
-1. **Create virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-2. **Install PyInstaller:**
+### Building Executable
+1. Install PyInstaller:
    ```bash
    pip install pyinstaller
    ```
 
-3. **Build the executable:**
-   ```bash
-   pyinstaller kamp_finances.spec
-   ```
-
-### Distribution
-
-#### Linux Distribution
-- Copy `dist/KampFinances` to any Linux system
-- Make it executable: `chmod +x KampFinances`
-- Run: `./KampFinances`
-
-#### Creating a Desktop Shortcut
-1. Create a `.desktop` file:
-   ```bash
-   [Desktop Entry]
-   Name=Kamp Finances
-   Comment=Scouting Trip Finance Management
-   Exec=/path/to/KampFinances
-   Icon=/path/to/icon.png
-   Terminal=false
-   Type=Application
-   Categories=Office;
-   ```
-
-2. Save it to `~/.local/share/applications/kamp-finances.desktop`
-
-### Build Configuration
-
-The build is configured in `kamp_finances.spec`:
-
-- **Console**: Set to `False` for GUI-only application
-- **Data files**: Includes the `data/` directory
-- **Hidden imports**: Includes all necessary Tkinter modules
-- **Optimization**: Uses UPX compression to reduce file size
-
-### Troubleshooting Build Issues
-
-#### Common Issues
-
-1. **"Permission denied" when running:**
-   ```bash
-   chmod +x dist/KampFinances
-   ```
-
-2. **Missing dependencies:**
-   - Ensure all required packages are in `requirements.txt`
-   - Rebuild with: `./build.sh`
-
-3. **Large file size:**
-   - This is normal for PyInstaller builds
-   - The executable includes Python runtime and all dependencies
-
-#### File Size Optimization
-
-The executable is ~12MB, which includes:
-- Python runtime
-- Tkinter libraries
-- All application code
-- Data directory
-
-### Development vs Production
-
-- **Development**: Use `python3 run.py`
-- **Production**: Use `./dist/KampFinances`
-
-### Updating the Executable
-
-When you make changes to the code:
-
-1. **Rebuild:**
+2. Build the executable:
    ```bash
    ./build.sh
    ```
 
-2. **Replace the old executable** with the new one in `dist/`
+3. Test the executable:
+   ```bash
+   ./test_executable.sh
+   ```
 
-### Notes
+The executable will be created in `dist/KampFinances` and can be run on any Linux system without Python installed.
 
-- The executable is self-contained and doesn't require Python installation
-- Data files are embedded in the executable
-- The application will create a `data/` directory in the same location as the executable for storing CSV files
-
-## Usage
+## 📖 Usage Guide
 
 ### Getting Started
-1. **Add Leaders**: Go to the "Leaders" tab and add all scouting leaders
-2. **Set POEF Prices**: Configure the price per drink for each leader
-3. **Start Tracking**: Begin entering daily receipts and POEF entries
+1. **Add Leaders**: Go to the Leaders tab and add the scouting leaders who will be participating
+2. **Add Receipts**: In the Receipts tab, add daily store receipts from your shopping trips
+3. **Categorize Items**: For each item in a receipt, assign it to the appropriate category:
+   - **Groepskas**: Group expenses (food, supplies, etc.)
+   - **POEF**: Drinks and snacks for the common fridge
+   - **PA**: Personal purchases for individual leaders
+4. **Assign PA Items**: In the PA Items tab, assign personal purchases to the appropriate leaders
+5. **Track POEF**: Update drink and cigarette counts for each leader in the Leaders tab
+6. **Generate Reports**: Use the export features to generate financial summaries
 
-### Daily Workflow
-1. **Morning Shopping**: Create a new receipt and add items, categorizing them appropriately
-2. **Process Messages**: Use "Process Text Message" to handle PA orders from leaders
-3. **Track POEF**: Add entries when leaders take drinks from the fridge
-4. **End of Day**: Review and validate the day's data
+### Key Workflows
 
-### Receipt Entry
-- **Groepskas**: Items paid by the scout group account
-- **POEF**: Drinks that will be paid later by individual leaders
-- **PA**: Personal purchases assigned to specific leaders
+#### Daily Receipt Entry
+1. Add a new receipt with date and store name
+2. Add individual items with price, quantity, and category
+3. Items are automatically categorized and totals calculated
 
-### PA Items Assignment
-- **Dynamic Assignment**: Add multiple leader entries as needed
-- **Auto-save**: Assignments are saved automatically when selections change
-- **Visual Feedback**: Clear status indicators for assignment state
-- **Efficient Workflow**: Quick single-person or multi-person assignments
+#### PA Item Assignment
+1. Select a PA item from the list
+2. Add leaders to the assignment using the "+ Add Leader" button
+3. Assignments are automatically saved and costs split equally
 
-### POEF Management
-- **Real-time Updates**: POEF totals update immediately when counts change
-- **Visual Controls**: Increment/decrement buttons for easy adjustment
-- **Comparison View**: See bought vs paid totals with color-coded indicators
+#### POEF Tracking
+1. Select a leader in the Leaders tab
+2. Use +/- buttons or direct entry to update drink/cigarette counts
+3. Totals are calculated automatically in real-time
 
-## Architecture
+#### Financial Reporting
+1. Select a leader and click "Generate Report" for individual summaries
+2. Use "Export to TXT/CSV" for distribution
+3. View global summaries for overall trip finances
 
-### Directory Structure
+## 🔧 Technical Details
 
-```
-kamp-finances/
-├── src/
-│   ├── main.py              # Application entry point
-│   ├── models/              # Data models
-│   │   ├── leader.py        # Leader model
-│   │   ├── receipt.py       # Receipt and item models
-│   │   └── expense.py       # Expense model
-│   ├── services/            # Business logic
-│   │   ├── data_service.py  # Data persistence
-│   │   └── finance_service.py # Financial calculations
-│   └── ui/                  # User interface
-│       ├── components/      # Reusable UI components
-│       │   ├── base_components.py # Base classes and common components
-│       ├── tabs/            # Application tabs
-│       │   ├── leaders_tab.py    # Leaders management
-│       │   ├── receipts_tab.py   # Receipts and expenses
-│       │   ├── pa_items_tab.py   # PA items management
-│       │   └── poef_tab.py       # POEF tracking
-│       └── new_main_window.py    # Main application window
-├── data/                    # Data storage (created automatically)
-├── requirements.txt         # Dependencies (none required)
-├── run.py                  # Application launcher
-└── README.md               # This file
-```
+### Data Storage
+- All data is stored in CSV files in the `data/` directory
+- Automatic backup and recovery mechanisms
+- Data integrity maintained across all operations
 
-### Core Components
+### Error Handling
+- Comprehensive validation for all user inputs
+- Graceful error recovery with user-friendly messages
+- Automatic data consistency checks
 
-#### Base Components (`base_components.py`)
-- **BaseTab**: Base class for all tabs with common functionality
-- **DataTable**: Reusable table component with sorting and filtering
-- **FormDialog**: Base class for form dialogs
-- **ActionButton**: Enhanced button with confirmation support
+### Performance
+- Efficient data loading and caching
+- Real-time updates without performance impact
+- Optimized for typical scouting trip data volumes
 
-#### Main Window (`new_main_window.py`)
-- Manages the overall application state
-- Provides data access methods for tabs
-- Handles data persistence
-- Coordinates between different tabs
+## 🤝 Contributing
 
-## Tabs Overview
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
-### 1. Leaders Tab
-**Purpose**: Manage leaders and their financial information
+## 📄 License
 
-**Features**:
-- Add/remove leaders
-- View leader expenses (PA and POEF)
-- Update POEF drink and cigarette counts with +/- buttons
-- Generate individual leader reports
-- Generate global summary reports
-- Detailed expense breakdown in summary section
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-**Key Components**:
-- Leaders table with expense totals
-- Leader details panel with summary
-- POEF management controls with real-time totals
-- Report generation buttons
+## 🆘 Support
 
-### 2. Receipts Tab
-**Purpose**: Manage receipts and categorize expenses
-
-**Features**:
-- Add/edit receipts with store and date information
-- Add/edit expenses within receipts
-- Categorize expenses (Groepskas, POEF, PA)
-- View receipt summaries and totals
-- Automatic total calculations
-
-**Key Components**:
-- Compact receipts table (Date, Store, Total)
-- Receipt details panel with summary
-- Expenses table taking most of the space
-- Expense categorization controls
-
-### 3. PA Items Tab
-**Purpose**: Manage PA (Personal Aankoop) items and assign them to leaders
-
-**Features**:
-- View all PA items from receipts
-- Dynamic leader assignment system
-- Auto-save assignments when selections change
-- Track assignment status and leader names
-- Efficient single-person and multi-person assignments
-
-**Key Components**:
-- PA items table showing assigned leader names
-- Item details panel with summary
-- Dynamic leader assignment entries
-- Assignment status display
-
-### 4. POEF Tab
-**Purpose**: Track POEF consumption and compare bought vs paid items
-
-**Features**:
-- View all POEF items from receipts
-- Track leader POEF consumption (drinks and cigarettes)
-- Compare total bought vs total paid
-- Visual indicators for discrepancies
-- Comprehensive consumption tracking
-
-**Key Components**:
-- POEF items table from receipts
-- Leader consumption table
-- Summary comparison display
-- Color-coded difference indicators
-
-## Key Features
-
-### Data Management
-- **Automatic Saving**: All changes are automatically saved to CSV files
-- **Data Validation**: Form validation ensures data integrity
-- **Real-time Updates**: Changes in one tab are reflected across all tabs
-- **Selection Preservation**: Selected items remain selected when data refreshes
-
-### User Experience
-- **Intuitive Interface**: Clean, organized layout with clear sections
-- **Confirmation Dialogs**: Important actions require confirmation
-- **Status Feedback**: Clear feedback for all operations
-- **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Auto-save**: No manual save buttons needed - changes apply immediately
-
-### Reporting
-- **Individual Reports**: Detailed reports for specific leaders
-- **Global Summaries**: Comprehensive financial summaries
-- **Export Functionality**: Save reports as text or CSV files
-- **Formatted Output**: Well-structured, readable reports
-
-## Data Storage
-
-The application stores all data in CSV files in the `data/` directory:
-- `leaders.csv`: Leader information, expenses, and POEF drink counts
-- `receipts.csv`: All store receipts
-- `receipt_items_*.csv`: Individual items for each receipt
-
-## Key Concepts
-
-### Expense Categories
-- **Groepskas**: Group expenses paid by the scout account
-- **POEF**: Fridge drinks and cigarettes, tracked separately and paid by leaders
-- **PA**: Personal purchases requested by individual leaders
-
-### POEF System
-- Physical list tracking drinks and cigarettes taken from common fridge
-- Each leader has a personal counter
-- Drinks and cigarettes are priced individually per leader
-- Final settlement at end of trip
-
-### Data Validation
-The application ensures data consistency by:
-- Validating receipt totals match item totals
-- Checking PA items are assigned to valid leaders
-- Preventing orphaned data references
-- Real-time validation and error feedback
-
-## Technical Details
-
-### Data Models
-- **Leader**: Represents a scouting leader with financial tracking
-- **Receipt**: Contains multiple expenses with category totals
-- **Expense**: Individual expense items with categorization
-- **ExpenseCategory**: Enum for Groepskas, POEF, and PA
-
-### Services
-- **DataService**: Handles data persistence and retrieval
-- **FinanceService**: Provides business logic and calculations
-
-### UI Patterns
-- **MVC-like Architecture**: Separation of data, logic, and presentation
-- **Observer Pattern**: Tabs update when data changes
-- **Factory Pattern**: Reusable dialog creation
-- **Command Pattern**: Action buttons with confirmation
-
-## Benefits of the New System
-
-1. **Modularity**: Each tab is self-contained and focused
-2. **Maintainability**: Clear separation of concerns
-3. **Extensibility**: Easy to add new features or tabs
-4. **Reusability**: Common components shared across tabs
-5. **User Experience**: Intuitive interface with clear workflows
-6. **Data Integrity**: Comprehensive validation and error handling
-7. **Efficiency**: Auto-save and real-time updates
-8. **Visual Feedback**: Clear status indicators and progress feedback
-
-## Tips for Best Use
-
-1. **Regular Backups**: Use the backup function regularly
-2. **Daily Validation**: Run data validation after each day's entries
-3. **Consistent Naming**: Use consistent item names for better tracking
-4. **Export Summaries**: Export summaries regularly for safekeeping
-5. **Use Auto-save**: No need to manually save - changes apply immediately
-6. **Check Status**: Monitor the status bar for operation feedback
-
-## Troubleshooting
-
-### Common Issues
-- **Data not saving**: Check file permissions in the data directory
-- **Import errors**: Ensure you're running Python 3.7+
-- **GUI not displaying**: Verify tkinter is available (included with most Python installations)
-- **Empty summaries**: Check if leaders have PA assignments or POEF counts
-
-### Data Recovery
-- Check the `data/backup_*` directories for automatic backups
-- CSV files can be manually edited if needed
-- Use the validation function to check data integrity
-
-## Contributing
-
-This application is designed specifically for scouting trip finance management. If you have suggestions for improvements or encounter issues, please consider the specific needs of scouting organizations.
-
-## License
-
-This project is designed for educational and organizational use within scouting groups.
+For issues or questions:
+1. Check the existing issues
+2. Create a new issue with detailed information
+3. Include system information and error messages
 
 ---
 
-*Last updated: January 2024*
+**Kamp Finances** - Making scouting trip finances simple and organized! 🏕️💰
