@@ -1,9 +1,9 @@
 data/*
 src/__pycache__/
-src/models/__pycache__/
-src/services/__pycache__/
-src/ui/__pycache__/
-src/ui/components/__pycache__/
+src/models/__pycache__
+src/services/__pycache__
+src/ui/__pycache__
+src/ui/components/__pycache__
 src/ui/tabs/__pycache__
 venv/
 build/
