@@ -3,7 +3,7 @@
 
 # Core dependencies (all built-in to Python 3.7+)
 # tkinter - GUI framework (built-in)
-# json - Data serialization (built-in)
+# csv - CSV file handling (built-in)
 # os - Operating system interface (built-in)
 # datetime - Date and time handling (built-in)
 # typing - Type hints (built-in)
@@ -12,4 +12,7 @@
 # re - Regular expressions (built-in)
 
 # No external dependencies required!
-# This application uses only Python standard library modules. 
+# This application uses only Python standard library modules.
+
+# Minimum Python version
+# Python >= 3.7 

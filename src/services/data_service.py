@@ -216,20 +216,34 @@ class DataService:
         except Exception as e:
             print(f"Error saving receipt items for {receipt_id}: {e}")
     
-    def _serialize_pa_purchases(self, purchases: List[str]) -> str:
-        """Convert pa_purchases list to CSV-compatible string."""
+    def _serialize_pa_purchases(self, purchases: Dict[str, float]) -> str:
+        """Convert pa_purchases dictionary to CSV-compatible string."""
         if not purchases:
             return ""
         
-        # Format: "id1|id2|id3"
-        return "|".join(purchases)
+        # Format: "id1:amount1|id2:amount2|id3:amount3"
+        return "|".join([f"{expense_id}:{amount}" for expense_id, amount in purchases.items()])
     
-    def _parse_pa_purchases(self, purchases_str: str) -> List[str]:
-        """Parse pa_purchases string back to list of expense IDs."""
+    def _parse_pa_purchases(self, purchases_str: str) -> Dict[str, float]:
+        """Parse pa_purchases string back to dictionary of expense IDs and amounts."""
         if not purchases_str:
-            return []
+            return {}
         
-        return purchases_str.split("|")
+        purchases = {}
+        for item in purchases_str.split("|"):
+            if ":" in item:
+                expense_id, amount_str = item.split(":", 1)
+                try:
+                    amount = float(amount_str)
+                    purchases[expense_id] = amount
+                except ValueError:
+                    # Handle legacy data that might be just IDs without amounts
+                    purchases[expense_id] = 0.0
+            else:
+                # Handle legacy data that might be just IDs
+                purchases[item] = 0.0
+        
+        return purchases
     
     def save_all_data(self, leaders: List[Leader], receipts: List[Receipt]):
         """Save all data to files."""

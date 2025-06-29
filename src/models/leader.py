@@ -22,24 +22,31 @@ class Leader:
     poef_drink_count: int = 0       # Total drinks from paper list
     poef_saf_count: int = 0         # Total cigarettes from paper list
     
-    # History - stores expense IDs that belong to this leader
-    pa_purchases: List[str] = field(default_factory=list)
+    # History - stores expense IDs and amounts that belong to this leader
+    pa_purchases: Dict[str, float] = field(default_factory=dict)
     
     def add_pa_purchase(self, expense_id: str, amount: float):
         """Add a personal purchase expense."""
-        if expense_id not in self.pa_purchases:
-            self.pa_purchases.append(expense_id)
-            self.total_pa_expenses += amount
+        self.pa_purchases[expense_id] = amount
+        self._recalculate_pa_total()
     
     def remove_pa_purchase(self, expense_id: str, amount: float):
         """Remove a personal purchase expense."""
         if expense_id in self.pa_purchases:
-            self.pa_purchases.remove(expense_id)
-            self.total_pa_expenses -= amount
+            del self.pa_purchases[expense_id]
+            self._recalculate_pa_total()
     
     def has_pa_purchase(self, expense_id: str) -> bool:
         """Check if leader has a specific PA purchase."""
         return expense_id in self.pa_purchases
+    
+    def get_pa_purchase_amount(self, expense_id: str) -> float:
+        """Get the amount this leader pays for a specific PA purchase."""
+        return self.pa_purchases.get(expense_id, 0.0)
+    
+    def _recalculate_pa_total(self):
+        """Recalculate the total PA expenses."""
+        self.total_pa_expenses = sum(self.pa_purchases.values())
     
     def set_poef_drink_count(self, count: int):
         """Set the total number of drinks from the paper list."""
@@ -87,6 +94,6 @@ class Leader:
         leader.total_pa_expenses = data.get("total_pa_expenses", 0.0)
         leader.poef_drink_count = data.get("poef_drink_count", 0)
         leader.poef_saf_count = data.get("poef_saf_count", 0)
-        leader.pa_purchases = data.get("pa_purchases", [])
+        leader.pa_purchases = data.get("pa_purchases", {})
         
         return leader 

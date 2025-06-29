@@ -6,44 +6,25 @@ A Python application to manage expenses during scouting trips.
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-import json
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
 # Import our modules
 from models.leader import Leader
-from models.receipt import Receipt, ReceiptItem
+from models.receipt import Receipt
 from models.expense import Expense, ExpenseCategory
 from services.finance_service import FinanceService
 from services.data_service import DataService
 from ui.main_window import MainWindow
 
+
 class KampFinancesApp:
     """Main application class for Kamp Finances."""
     
     def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("Kamp Finances - Scouting Trip Manager")
-        self.root.geometry("1200x800")
-        self.root.minsize(800, 600)
-        
-        # Initialize services
-        self.data_service = DataService()
-        self.finance_service = FinanceService(self.data_service)
-        
-        # Load existing data
-        self.leaders = self.data_service.load_leaders()
-        self.receipts = self.data_service.load_receipts()
-        
-        # Create main window with data references
-        self.main_window = MainWindow(
-            self.root, 
-            self.finance_service,
-            self.data_service,
-            self.leaders,  # Pass reference to leaders list
-            self.receipts  # Pass reference to receipts list
-        )
+        # Initialize the main window
+        self.main_window = MainWindow()
         
         # Configure style
         self._setup_styles()
@@ -63,15 +44,12 @@ class KampFinancesApp:
     def run(self):
         """Start the application."""
         try:
-            self.root.mainloop()
+            self.main_window.run()
         except KeyboardInterrupt:
             print("Application interrupted by user")
         finally:
-            # Save data before closing
-            self.data_service.save_all_data(
-                self.leaders, 
-                self.receipts
-            )
+            # Data is automatically saved by the new main window
+            pass
 
 def main():
     """Main entry point."""

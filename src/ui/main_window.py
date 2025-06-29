@@ -1,224 +1,300 @@
 """
-Main window UI for Kamp Finances application.
+New main window for Kamp Finances application with modular tab system.
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox
-from typing import List, Dict
+from tkinter import ttk, messagebox, filedialog
+from typing import List, Optional
+import os
 
 from models.leader import Leader
-from models.receipt import Receipt, ExpenseCategory
-from services.finance_service import FinanceService
+from models.receipt import Receipt
 from services.data_service import DataService
+from services.finance_service import FinanceService
+from ui.tabs.leaders_tab import LeadersTab
+from ui.tabs.receipts_tab import ReceiptsTab
+from ui.tabs.pa_items_tab import PAItemsTab
+from ui.tabs.poef_tab import POEFTab
 
-from ui.leaders_tab import LeadersTab
-from ui.receipts_tab import ReceiptsTab
-from ui.poef_tab import PoefTab
-from ui.summary_tab import SummaryTab
-
-class MainWindow:
-    """Main application window with tabbed interface."""
+class MainWindow(tk.Tk):
+    """Main application window with modular tab system."""
     
-    def __init__(self, root: tk.Tk, finance_service: FinanceService, data_service: DataService, leaders: List[Leader], receipts: List[Receipt]):
-        self.root = root
-        self.finance_service = finance_service
-        self.data_service = data_service
+    def __init__(self):
+        super().__init__()
         
-        # Use data references from main app
-        self.leaders = leaders
-        self.receipts = receipts
+        # Initialize services
+        self.data_service = DataService()
+        self.finance_service = FinanceService(self.data_service)
         
-        # Create UI first
+        # Setup window
+        self.setup_window()
         self.create_widgets()
-        self.setup_bindings()
+        self.apply_styles()
         
-        # Update displays (data is already loaded)
+        # Load data after UI is created
+        self.load_data()
+        
+        # Refresh all tabs
         self.refresh_all_tabs()
     
+    def setup_window(self):
+        """Setup the main window properties."""
+        self.title("Kamp Finances - New UI")
+        self.geometry("1200x800")
+        self.minsize(800, 600)
+        
+        # Center window
+        self.center_window()
+    
+    def center_window(self):
+        """Center the window on the screen."""
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (self.winfo_width() // 2)
+        y = (self.winfo_screenheight() // 2) - (self.winfo_height() // 2)
+        self.geometry(f"+{x}+{y}")
+    
     def create_widgets(self):
-        """Create the main UI widgets."""
-        # Create notebook for tabs
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        """Create the main window widgets."""
+        # Main container
+        main_container = ttk.Frame(self)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Title
+        title_label = ttk.Label(main_container, text="Kamp Finances Management System", style="MainTitle.TLabel")
+        title_label.pack(pady=(0, 20))
+        
+        # Notebook for tabs
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
         
         # Create tabs
+        self.create_tabs()
+        
+        # Status bar
+        self.create_status_bar(main_container)
+    
+    def create_tabs(self):
+        """Create all the application tabs."""
+        # Leaders tab
         self.leaders_tab = LeadersTab(self.notebook, self)
-        self.receipts_tab = ReceiptsTab(self.notebook, self)
-        self.poef_tab = PoefTab(self.notebook, self)
-        self.summary_tab = SummaryTab(self.notebook, self)
-        
-        # Add tabs to notebook
         self.notebook.add(self.leaders_tab, text="Leaders")
+        
+        # Receipts tab
+        self.receipts_tab = ReceiptsTab(self.notebook, self)
         self.notebook.add(self.receipts_tab, text="Receipts")
+        
+        # PA Items tab
+        self.pa_items_tab = PAItemsTab(self.notebook, self)
+        self.notebook.add(self.pa_items_tab, text="PA Items")
+        
+        # POEF tab
+        self.poef_tab = POEFTab(self.notebook, self)
         self.notebook.add(self.poef_tab, text="POEF")
-        self.notebook.add(self.summary_tab, text="Summary")
         
-        # Create status bar
-        self.create_status_bar()
-        
-        # Create menu bar
-        self.create_menu_bar()
-    
-    def create_status_bar(self):
-        """Create status bar at bottom of window."""
-        self.status_frame = ttk.Frame(self.root)
-        self.status_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        
-        self.status_label = ttk.Label(self.status_frame, text="Ready")
-        self.status_label.pack(side=tk.LEFT, padx=5, pady=2)
-        
-        # Add save indicator
-        self.save_indicator = ttk.Label(self.status_frame, text="", foreground="green")
-        self.save_indicator.pack(side=tk.RIGHT, padx=5, pady=2)
-    
-    def create_menu_bar(self):
-        """Create menu bar."""
-        menubar = tk.Menu(self.root)
-        self.root.config(menu=menubar)
-        
-        # File menu
-        file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Save All", command=self.save_all_data)
-        file_menu.add_command(label="Export Summary", command=self.export_summary)
-        file_menu.add_command(label="Backup Data", command=self.backup_data)
-        file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.root.quit)
-        
-        # Data menu
-        data_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Data", menu=data_menu)
-        data_menu.add_command(label="Refresh All", command=self.refresh_all_tabs)
-        data_menu.add_command(label="Validate Data", command=self.validate_data)
-    
-    def setup_bindings(self):
-        """Setup event bindings."""
-        # Auto-save on window close
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
-        # Tab change event
+        # Bind tab change event
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
     
-    def save_all_data(self):
-        """Save all data to storage."""
-        try:
-            self.data_service.save_all_data(self.leaders, self.receipts)
-            self.update_save_indicator("Saved")
-            self.update_status("Data saved successfully")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save data: {e}")
-            self.update_status("Error saving data")
-    
-    def export_summary(self):
-        """Export summary report."""
-        try:
-            summary_path = self.data_service.export_summary(self.leaders, self.receipts)
-            if summary_path:
-                messagebox.showinfo("Success", f"Summary exported to: {summary_path}")
-                self.update_status("Summary exported successfully")
-            else:
-                messagebox.showerror("Error", "Failed to export summary")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to export summary: {e}")
-    
-    def backup_data(self):
-        """Create backup of data."""
-        try:
-            backup_path = self.data_service.backup_data()
-            messagebox.showinfo("Success", f"Backup created at: {backup_path}")
-            self.update_status("Backup created successfully")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to create backup: {e}")
-    
-    def validate_data(self):
-        """Validate all data for consistency."""
-        errors = []
+    def create_status_bar(self, parent):
+        """Create the status bar."""
+        status_frame = ttk.Frame(parent)
+        status_frame.pack(fill=tk.X, pady=(10, 0))
         
-        # Validate receipts
-        for receipt in self.receipts:
-            is_valid, receipt_errors = self.finance_service.validate_receipt(receipt)
-            if not is_valid:
-                errors.extend([f"Receipt {receipt.id}: {error}" for error in receipt_errors])
+        # Status label
+        self.status_label = ttk.Label(status_frame, text="Ready", style="Status.TLabel")
+        self.status_label.pack(side=tk.LEFT)
         
-        # Check for orphaned PA items
-        for receipt in self.receipts:
-            pa_items = receipt.get_items_by_category(ExpenseCategory.PA)
-            for item in pa_items:
-                if item.assigned_to:
-                    leader_exists = any(leader.id == item.assigned_to for leader in self.leaders)
-                    if not leader_exists:
-                        errors.append(f"PA item '{item.name}' assigned to non-existent leader")
+        # Data info
+        self.data_info_label = ttk.Label(status_frame, text="", style="Status.TLabel")
+        self.data_info_label.pack(side=tk.RIGHT)
+    
+    def apply_styles(self):
+        """Apply custom styles to the application."""
+        style = ttk.Style()
         
-        if errors:
-            error_text = "\n".join(errors)
-            messagebox.showerror("Validation Errors", f"Found {len(errors)} errors:\n\n{error_text}")
-        else:
-            messagebox.showinfo("Validation", "All data is valid!")
+        # Configure styles
+        style.configure("MainTitle.TLabel", font=("Arial", 16, "bold"))
+        style.configure("Title.TLabel", font=("Arial", 14, "bold"))
+        style.configure("Header.TLabel", font=("Arial", 12, "bold"))
+        style.configure("Status.TLabel", font=("Arial", 9))
+    
+    def load_data(self):
+        """Load data from files."""
+        try:
+            # Load leaders and receipts separately
+            leaders = self.data_service.load_leaders()
+            receipts = self.data_service.load_receipts()
+            
+            # Store data in the service
+            self.data_service.leaders = leaders
+            self.data_service.receipts = receipts
+            
+            self.status_label.config(text="Data loaded successfully")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load data: {str(e)}")
+            self.status_label.config(text="Failed to load data")
+    
+    def save_data(self):
+        """Save data to files."""
+        try:
+            leaders = self.get_leaders()
+            receipts = self.get_receipts()
+            self.data_service.save_all_data(leaders, receipts)
+            self.status_label.config(text="Data saved successfully")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save data: {str(e)}")
+            self.status_label.config(text="Failed to save data")
     
     def refresh_all_tabs(self):
-        """Refresh all tab displays."""
-        self.leaders_tab.refresh_display()
-        self.receipts_tab.refresh_display()
-        self.poef_tab.refresh_display()
-        self.summary_tab.refresh_display()
-        self.update_status("All displays refreshed")
+        """Refresh all tabs."""
+        self.leaders_tab.refresh_data()
+        self.receipts_tab.refresh_data()
+        self.pa_items_tab.refresh_data()
+        self.poef_tab.refresh_data()
+        self.update_data_info()
+    
+    def update_data_info(self):
+        """Update the data info in the status bar."""
+        leaders = self.get_leaders()
+        receipts = self.get_receipts()
+        
+        info_text = f"Leaders: {len(leaders)} | Receipts: {len(receipts)}"
+        self.data_info_label.config(text=info_text)
     
     def on_tab_changed(self, event):
         """Handle tab change events."""
         current_tab = self.notebook.select()
+        tab_widget = self.nametowidget(current_tab)
         tab_name = self.notebook.tab(current_tab, "text")
-        self.update_status(f"Switched to {tab_name} tab")
+        self.status_label.config(text=f"Current tab: {tab_name}")
+        # Refresh data for the selected tab if possible
+        if hasattr(tab_widget, 'refresh_data'):
+            tab_widget.refresh_data()
     
-    def on_closing(self):
-        """Handle window closing."""
-        # Auto-save before closing
-        self.save_all_data()
-        self.root.destroy()
-    
-    def update_status(self, message: str):
-        """Update status bar message."""
-        if hasattr(self, 'status_label'):
-            self.status_label.config(text=message)
-    
-    def update_save_indicator(self, message: str):
-        """Update save indicator."""
-        if hasattr(self, 'save_indicator'):
-            self.save_indicator.config(text=message)
-            # Clear after 3 seconds
-            self.root.after(3000, lambda: self.save_indicator.config(text=""))
-    
+    # Data access methods for tabs
     def get_leaders(self) -> List[Leader]:
-        """Get current leaders list."""
-        return self.leaders
+        """Get all leaders."""
+        return getattr(self.data_service, 'leaders', [])
     
     def get_receipts(self) -> List[Receipt]:
-        """Get current receipts list."""
-        return self.receipts
+        """Get all receipts."""
+        return getattr(self.data_service, 'receipts', [])
+    
+    def get_leader_by_id(self, leader_id: str) -> Optional[Leader]:
+        """Get a leader by ID."""
+        leaders = self.get_leaders()
+        for leader in leaders:
+            if leader.id == leader_id:
+                return leader
+        return None
+    
+    def get_receipt_by_id(self, receipt_id: str) -> Optional[Receipt]:
+        """Get a receipt by ID."""
+        receipts = self.get_receipts()
+        for receipt in receipts:
+            if receipt.id == receipt_id:
+                return receipt
+        return None
     
     def add_leader(self, leader: Leader):
         """Add a new leader."""
-        self.leaders.append(leader)
+        leaders = self.get_leaders()
+        leaders.append(leader)
+        self.data_service.leaders = leaders
+        self.save_data()
         self.refresh_all_tabs()
-        self.update_save_indicator("Modified")
-        self.save_all_data()
     
     def remove_leader(self, leader_id: str):
-        """Remove a leader."""
-        self.leaders = [l for l in self.leaders if l.id != leader_id]
+        """Remove a leader by ID."""
+        leaders = self.get_leaders()
+        leaders = [l for l in leaders if l.id != leader_id]
+        self.data_service.leaders = leaders
+        self.save_data()
         self.refresh_all_tabs()
-        self.update_save_indicator("Modified")
-        self.save_all_data()
     
     def add_receipt(self, receipt: Receipt):
         """Add a new receipt."""
-        self.receipts.append(receipt)
+        receipts = self.get_receipts()
+        receipts.append(receipt)
+        self.data_service.receipts = receipts
+        self.save_data()
         self.refresh_all_tabs()
-        self.update_save_indicator("Modified")
-        self.save_all_data()
     
     def remove_receipt(self, receipt_id: str):
-        """Remove a receipt."""
-        self.receipts = [r for r in self.receipts if r.id != receipt_id]
+        """Remove a receipt by ID and clean up all references."""
+        receipts = self.get_receipts()
+        
+        # Find the receipt to be removed
+        receipt_to_remove = None
+        for receipt in receipts:
+            if receipt.id == receipt_id:
+                receipt_to_remove = receipt
+                break
+        
+        if not receipt_to_remove:
+            return
+        
+        # Clean up PA expenses from leaders
+        leaders = self.get_leaders()
+        for leader in leaders:
+            # Remove all PA expenses from this receipt
+            expenses_to_remove = []
+            for expense_id, amount in leader.pa_purchases.items():
+                # Check if this expense belongs to the receipt being removed
+                for expense in receipt_to_remove.items:
+                    if expense.id == expense_id and expense.category.value == "PA":
+                        expenses_to_remove.append(expense_id)
+                        break
+            
+            # Remove the expenses
+            for expense_id in expenses_to_remove:
+                leader.remove_pa_purchase(expense_id, 0)
+        
+        # Remove the receipt from the list
+        receipts = [r for r in receipts if r.id != receipt_id]
+        self.data_service.receipts = receipts
+        
+        # Delete the receipt's items CSV file
+        try:
+            import os
+            items_file = os.path.join(self.data_service.data_dir, f"receipt_items_{receipt_id}.csv")
+            if os.path.exists(items_file):
+                os.remove(items_file)
+        except Exception as e:
+            print(f"Warning: Could not delete receipt items file: {e}")
+        
+        # Save the updated data
+        self.save_data()
         self.refresh_all_tabs()
-        self.update_save_indicator("Modified")
-        self.save_all_data() 
+    
+    def export_summary(self):
+        """Export a global summary report."""
+        # Implementation placeholder
+        pass
+    
+    def export_leader_details(self, leader: Leader):
+        """Export details for a specific leader."""
+        # Implementation placeholder
+        pass
+    
+    def write_summary_to_file(self, filepath: str, summary: dict):
+        """Write a summary report to a file."""
+        # Implementation placeholder
+        pass
+    
+    def write_leader_details_to_file(self, filepath: str, leader: Leader):
+        """Write leader details to a file."""
+        # Implementation placeholder
+        pass
+    
+    def get_timestamp(self) -> str:
+        """Get a timestamp string."""
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    def run(self):
+        """Start the main loop."""
+        self.mainloop()
+
+def main():
+    app = NewMainWindow()
+    app.run()
