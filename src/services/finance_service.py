@@ -8,7 +8,8 @@ from datetime import datetime
 import re
 
 from models.leader import Leader
-from models.receipt import Receipt, ReceiptItem, ExpenseCategory
+from models.receipt import Receipt
+from models.expense import Expense, ExpenseCategory
 from services.data_service import DataService
 
 class FinanceService:
@@ -62,11 +63,11 @@ class FinanceService:
         receipt = Receipt(date=date)
         
         for item_data in items:
-            item = ReceiptItem(
+            item = Expense(
                 name=item_data["name"],
                 price=item_data["price"],
                 category=ExpenseCategory.PA,
-                assigned_to=item_data.get("leader_id")
+                date=date
             )
             receipt.add_item(item)
         
@@ -77,11 +78,12 @@ class FinanceService:
         pa_total = leader.total_pa_expenses
         poef_total = leader.get_poef_total()
         
-        # Add PA items from receipts
+        # Add PA items from receipts that are in the leader's pa_purchases
         for receipt in receipts:
-            pa_items = receipt.get_pa_items_by_leader(leader.id)
+            pa_items = receipt.get_items_by_category(ExpenseCategory.PA)
             for item in pa_items:
-                pa_total += item.get_total_price()
+                if leader.has_pa_purchase(item.id):
+                    pa_total += item.get_total_price()
         
         return {
             "leader_id": leader.id,
@@ -90,7 +92,8 @@ class FinanceService:
             "poef_expenses": poef_total,
             "total_expenses": pa_total + poef_total,
             "pa_items_count": len(leader.pa_purchases),
-            "poef_drinks_count": leader.poef_drink_count
+            "poef_drinks_count": leader.poef_drink_count,
+            "poef_saf_count": leader.poef_saf_count
         }
     
     def generate_summary_report(self, leaders: List[Leader], receipts: List[Receipt]) -> Dict:
@@ -137,12 +140,6 @@ class FinanceService:
         if uncategorized:
             errors.append(f"Found {len(uncategorized)} items without categories")
         
-        # Check PA items have assigned leaders
-        pa_items = receipt.get_items_by_category(ExpenseCategory.PA)
-        unassigned_pa = [item for item in pa_items if not item.assigned_to]
-        if unassigned_pa:
-            errors.append(f"Found {len(unassigned_pa)} PA items without assigned leaders")
-        
         return len(errors) == 0, errors
     
     def set_poef_drink_count(self, leader: Leader, count: int):
@@ -152,6 +149,14 @@ class FinanceService:
     def add_poef_drinks(self, leader: Leader, count: int):
         """Add drinks to the existing POEF count for a leader."""
         leader.add_poef_drinks(count)
+    
+    def set_poef_saf_count(self, leader: Leader, count: int):
+        """Set the POEF SAF count for a leader from the paper list."""
+        leader.set_poef_saf_count(count)
+    
+    def add_poef_safs(self, leader: Leader, count: int):
+        """Add SAFs to the existing POEF count for a leader."""
+        leader.add_poef_safs(count)
     
     def get_leaders_by_name(self, leaders: List[Leader], name: str) -> List[Leader]:
         """Find leaders by name (partial match)."""

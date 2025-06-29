@@ -1,9 +1,9 @@
 """
 Data service for Kamp Finances application.
-Handles data persistence and loading.
+Handles data persistence and loading using CSV files.
 """
 
-import json
+import csv
 import os
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -13,7 +13,7 @@ from models.receipt import Receipt
 from models.expense import Expense
 
 class DataService:
-    """Service for managing data persistence."""
+    """Service for managing data persistence using CSV files."""
     
     def __init__(self, data_dir: str = "data"):
         self.data_dir = data_dir
@@ -29,56 +29,207 @@ class DataService:
         return os.path.join(self.data_dir, filename)
     
     def load_leaders(self) -> List[Leader]:
-        """Load leaders from JSON file."""
-        file_path = self._get_file_path("leaders.json")
+        """Load leaders from CSV file."""
+        file_path = self._get_file_path("leaders.csv")
         
         if not os.path.exists(file_path):
             return []
         
+        leaders = []
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return [Leader.from_dict(leader_data) for leader_data in data]
-        except (json.JSONDecodeError, KeyError) as e:
+            with open(file_path, 'r', encoding='utf-8', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        # Convert string representations back to proper types
+                        leader_data = {
+                            "id": row["id"],
+                            "name": row["name"],
+                            "total_pa_expenses": float(row.get("total_pa_expenses", "0.0")),
+                            "poef_drink_count": int(row.get("poef_drink_count", "0")),
+                            "poef_saf_count": int(row.get("poef_saf_count", "0")),
+                            "pa_purchases": self._parse_pa_purchases(row.get("pa_purchases", ""))
+                        }
+                        leaders.append(Leader.from_dict(leader_data))
+                    except (ValueError, KeyError) as e:
+                        print(f"Error parsing leader row: {e}, skipping...")
+                        continue
+        except Exception as e:
             print(f"Error loading leaders: {e}")
             return []
+        
+        return leaders
     
     def save_leaders(self, leaders: List[Leader]):
-        """Save leaders to JSON file."""
-        file_path = self._get_file_path("leaders.json")
+        """Save leaders to CSV file."""
+        file_path = self._get_file_path("leaders.csv")
+        
+        if not leaders:
+            # Create empty file with headers
+            fieldnames = ["id", "name", "total_pa_expenses", 
+                         "poef_drink_count", "poef_saf_count", "pa_purchases"]
+            with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+            return
         
         try:
-            data = [leader.to_dict() for leader in leaders]
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            fieldnames = ["id", "name", "total_pa_expenses", 
+                        "poef_drink_count", "poef_saf_count", "pa_purchases"]
+            
+            with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                for leader in leaders:
+                    leader_dict = leader.to_dict()
+                    # Convert pa_purchases list to string representation
+                    leader_dict["pa_purchases"] = self._serialize_pa_purchases(leader.pa_purchases)
+                    writer.writerow(leader_dict)
         except Exception as e:
             print(f"Error saving leaders: {e}")
     
     def load_receipts(self) -> List[Receipt]:
-        """Load receipts from JSON file."""
-        file_path = self._get_file_path("receipts.json")
+        """Load receipts from CSV files."""
+        receipts = []
         
-        if not os.path.exists(file_path):
-            return []
+        # Load receipt headers
+        headers_file = self._get_file_path("receipts.csv")
+        if not os.path.exists(headers_file):
+            return receipts
         
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return [Receipt.from_dict(receipt_data) for receipt_data in data]
-        except (json.JSONDecodeError, KeyError) as e:
+            with open(headers_file, 'r', encoding='utf-8', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        receipt_data = {
+                            "id": row["id"],
+                            "date": row["date"],
+                            "store_name": row.get("store_name", "Colruyt"),
+                            "total_amount": float(row.get("total_amount", "0.0")),
+                            "groepskas_total": float(row.get("groepskas_total", "0.0")),
+                            "poef_total": float(row.get("poef_total", "0.0")),
+                            "pa_total": float(row.get("pa_total", "0.0"))
+                        }
+                        
+                        # Load items for this receipt
+                        items = self._load_receipt_items(row["id"])
+                        receipt = Receipt.from_dict(receipt_data)
+                        receipt.items = items
+                        receipts.append(receipt)
+                    except (ValueError, KeyError) as e:
+                        print(f"Error parsing receipt row: {e}, skipping...")
+                        continue
+        except Exception as e:
             print(f"Error loading receipts: {e}")
             return []
+        
+        return receipts
     
     def save_receipts(self, receipts: List[Receipt]):
-        """Save receipts to JSON file."""
-        file_path = self._get_file_path("receipts.json")
+        """Save receipts to CSV files."""
+        # Save receipt headers
+        headers_file = self._get_file_path("receipts.csv")
+        
+        if not receipts:
+            # Create empty file with headers
+            fieldnames = ["id", "date", "store_name", "total_amount", 
+                         "groepskas_total", "poef_total", "pa_total"]
+            with open(headers_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+            return
         
         try:
-            data = [receipt.to_dict() for receipt in receipts]
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            fieldnames = ["id", "date", "store_name", "total_amount", 
+                         "groepskas_total", "poef_total", "pa_total"]
+            
+            with open(headers_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                for receipt in receipts:
+                    receipt_dict = receipt.to_dict()
+                    # Remove items from dict as they're saved separately
+                    del receipt_dict["items"]
+                    writer.writerow(receipt_dict)
+                    
+                    # Save items for this receipt
+                    self._save_receipt_items(receipt.id, receipt.items)
         except Exception as e:
             print(f"Error saving receipts: {e}")
+    
+    def _load_receipt_items(self, receipt_id: str) -> List[Expense]:
+        """Load items for a specific receipt."""
+        items_file = self._get_file_path(f"receipt_items_{receipt_id}.csv")
+        
+        if not os.path.exists(items_file):
+            return []
+        
+        items = []
+        try:
+            with open(items_file, 'r', encoding='utf-8', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    try:
+                        item_data = {
+                            "id": row.get("id", ""),
+                            "name": row["name"],
+                            "price": float(row["price"]),
+                            "quantity": float(row.get("quantity", "1.0")),
+                            "category": row.get("category", "Groepskas"),
+                            "date": row.get("date", ""),
+                            "receipt_id": row.get("receipt_id", receipt_id)
+                        }
+                        items.append(Expense.from_dict(item_data))
+                    except (ValueError, KeyError) as e:
+                        print(f"Error parsing receipt item row: {e}, skipping...")
+                        continue
+        except Exception as e:
+            print(f"Error loading receipt items for {receipt_id}: {e}")
+        
+        return items
+    
+    def _save_receipt_items(self, receipt_id: str, items: List[Expense]):
+        """Save items for a specific receipt."""
+        items_file = self._get_file_path(f"receipt_items_{receipt_id}.csv")
+        
+        if not items:
+            # Create empty file with headers
+            fieldnames = ["id", "name", "price", "quantity", "category", "date", "receipt_id"]
+            with open(items_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+            return
+        
+        try:
+            fieldnames = ["id", "name", "price", "quantity", "category", "date", "receipt_id"]
+            
+            with open(items_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                for item in items:
+                    item_dict = item.to_dict()
+                    writer.writerow(item_dict)
+        except Exception as e:
+            print(f"Error saving receipt items for {receipt_id}: {e}")
+    
+    def _serialize_pa_purchases(self, purchases: List[str]) -> str:
+        """Convert pa_purchases list to CSV-compatible string."""
+        if not purchases:
+            return ""
+        
+        # Format: "id1|id2|id3"
+        return "|".join(purchases)
+    
+    def _parse_pa_purchases(self, purchases_str: str) -> List[str]:
+        """Parse pa_purchases string back to list of expense IDs."""
+        if not purchases_str:
+            return []
+        
+        return purchases_str.split("|")
     
     def save_all_data(self, leaders: List[Leader], receipts: List[Receipt]):
         """Save all data to files."""
@@ -86,28 +237,56 @@ class DataService:
         self.save_receipts(receipts)
     
     def export_summary(self, leaders: List[Leader], receipts: List[Receipt], filename: str = None):
-        """Export a summary report to JSON."""
+        """Export a summary report to CSV."""
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"summary_{timestamp}.json"
+            filename = f"summary_{timestamp}.csv"
         
         file_path = self._get_file_path(filename)
         
-        summary = {
-            "export_date": datetime.now().isoformat(),
-            "leaders": [leader.to_dict() for leader in leaders],
-            "receipts": [receipt.to_dict() for receipt in receipts],
-            "totals": {
-                "total_groepskas": sum(receipt.groepskas_total for receipt in receipts),
-                "total_poef": sum(receipt.poef_total for receipt in receipts),
-                "total_pa": sum(receipt.pa_total for receipt in receipts),
-                "total_leaders_expenses": sum(leader.get_total_expenses() for leader in leaders)
-            }
-        }
-        
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(summary, f, indent=2, ensure_ascii=False)
+            with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                
+                # Write header
+                writer.writerow(["Summary Report", datetime.now().isoformat()])
+                writer.writerow([])
+                
+                # Write totals
+                writer.writerow(["Category", "Total"])
+                writer.writerow(["Total Groepskas", sum(receipt.groepskas_total for receipt in receipts)])
+                writer.writerow(["Total POEF", sum(receipt.poef_total for receipt in receipts)])
+                writer.writerow(["Total PA", sum(receipt.pa_total for receipt in receipts)])
+                writer.writerow(["Total Leaders Expenses", sum(leader.get_total_expenses() for leader in leaders)])
+                writer.writerow([])
+                
+                # Write leaders summary
+                writer.writerow(["Leaders Summary"])
+                writer.writerow(["Name", "Total PA Expenses", "POEF Drinks", "POEF SAFs", "POEF Total", "Total Expenses"])
+                for leader in leaders:
+                    writer.writerow([
+                        leader.name,
+                        leader.total_pa_expenses,
+                        leader.poef_drink_count,
+                        leader.poef_saf_count,
+                        leader.get_poef_total(),
+                        leader.get_total_expenses()
+                    ])
+                writer.writerow([])
+                
+                # Write receipts summary
+                writer.writerow(["Receipts Summary"])
+                writer.writerow(["Date", "Store", "Total Amount", "Groepskas", "POEF", "PA"])
+                for receipt in receipts:
+                    writer.writerow([
+                        receipt.date,
+                        receipt.store_name,
+                        receipt.total_amount,
+                        receipt.groepskas_total,
+                        receipt.poef_total,
+                        receipt.pa_total
+                    ])
+            
             return file_path
         except Exception as e:
             print(f"Error exporting summary: {e}")
@@ -121,17 +300,20 @@ class DataService:
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
         
-        files_to_backup = ["leaders.json", "receipts.json"]
+        # Get all CSV files to backup
+        files_to_backup = []
+        for filename in os.listdir(self.data_dir):
+            if filename.endswith('.csv'):
+                files_to_backup.append(filename)
         
         for filename in files_to_backup:
             source_path = self._get_file_path(filename)
-            if os.path.exists(source_path):
-                backup_path = os.path.join(backup_dir, filename)
-                try:
-                    with open(source_path, 'r', encoding='utf-8') as source:
-                        with open(backup_path, 'w', encoding='utf-8') as backup:
-                            backup.write(source.read())
-                except Exception as e:
-                    print(f"Error backing up {filename}: {e}")
+            backup_path = os.path.join(backup_dir, filename)
+            try:
+                with open(source_path, 'r', encoding='utf-8') as source:
+                    with open(backup_path, 'w', encoding='utf-8') as backup:
+                        backup.write(source.read())
+            except Exception as e:
+                print(f"Error backing up {filename}: {e}")
         
         return backup_dir 
