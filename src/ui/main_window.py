@@ -11,10 +11,10 @@ from models.leader import Leader
 from models.receipt import Receipt
 from services.data_service import DataService
 from services.finance_service import FinanceService
-from ui.tabs.leaders_tab import LeadersTab
-from ui.tabs.receipts_tab import ReceiptsTab
-from ui.tabs.pa_items_tab import PAItemsTab
-from ui.tabs.poef_tab import POEFTab
+from leaders_tab import LeadersTab
+from receipts_tab import ReceiptsTab
+from pa_tab import PAItemsTab
+from poef_tab import POEFTab
 
 class MainWindow(tk.Tk):
     """Main application window with modular tab system."""

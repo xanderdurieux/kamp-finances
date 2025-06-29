@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 
 from models.expense import Expense, ExpenseCategory
 from models.leader import Leader
-from ui.components.base_components import BaseTab, DataTable, FormDialog, ActionButton
+from base_components import BaseTab, DataTable, FormDialog, ActionButton
 
 class LeaderAssignmentDialog(FormDialog):
     """Dialog for assigning PA items to leaders."""

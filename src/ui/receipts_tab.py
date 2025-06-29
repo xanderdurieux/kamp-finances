@@ -9,7 +9,7 @@ from datetime import datetime
 
 from models.receipt import Receipt
 from models.expense import Expense, ExpenseCategory
-from ui.components.base_components import BaseTab, DataTable, FormDialog, ActionButton
+from base_components import BaseTab, DataTable, FormDialog, ActionButton
 
 class ReceiptFormDialog(FormDialog):
     """Dialog for adding/editing receipts."""

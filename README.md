@@ -66,6 +66,127 @@ A Python desktop application designed to help manage finances during scouting tr
    python src/main.py
    ```
 
+## Building the Executable
+
+### Prerequisites for Building
+- Python 3.8 or higher
+- Linux system (for Linux executable)
+
+### Quick Build
+
+1. **Run the build script:**
+   ```bash
+   ./build.sh
+   ```
+
+2. **The executable will be created at:**
+   ```
+   dist/KampFinances
+   ```
+
+3. **Run the application:**
+   ```bash
+   ./dist/KampFinances
+   ```
+
+### Manual Build Process
+
+If you prefer to build manually:
+
+1. **Create virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. **Install PyInstaller:**
+   ```bash
+   pip install pyinstaller
+   ```
+
+3. **Build the executable:**
+   ```bash
+   pyinstaller kamp_finances.spec
+   ```
+
+### Distribution
+
+#### Linux Distribution
+- Copy `dist/KampFinances` to any Linux system
+- Make it executable: `chmod +x KampFinances`
+- Run: `./KampFinances`
+
+#### Creating a Desktop Shortcut
+1. Create a `.desktop` file:
+   ```bash
+   [Desktop Entry]
+   Name=Kamp Finances
+   Comment=Scouting Trip Finance Management
+   Exec=/path/to/KampFinances
+   Icon=/path/to/icon.png
+   Terminal=false
+   Type=Application
+   Categories=Office;
+   ```
+
+2. Save it to `~/.local/share/applications/kamp-finances.desktop`
+
+### Build Configuration
+
+The build is configured in `kamp_finances.spec`:
+
+- **Console**: Set to `False` for GUI-only application
+- **Data files**: Includes the `data/` directory
+- **Hidden imports**: Includes all necessary Tkinter modules
+- **Optimization**: Uses UPX compression to reduce file size
+
+### Troubleshooting Build Issues
+
+#### Common Issues
+
+1. **"Permission denied" when running:**
+   ```bash
+   chmod +x dist/KampFinances
+   ```
+
+2. **Missing dependencies:**
+   - Ensure all required packages are in `requirements.txt`
+   - Rebuild with: `./build.sh`
+
+3. **Large file size:**
+   - This is normal for PyInstaller builds
+   - The executable includes Python runtime and all dependencies
+
+#### File Size Optimization
+
+The executable is ~12MB, which includes:
+- Python runtime
+- Tkinter libraries
+- All application code
+- Data directory
+
+### Development vs Production
+
+- **Development**: Use `python3 run.py`
+- **Production**: Use `./dist/KampFinances`
+
+### Updating the Executable
+
+When you make changes to the code:
+
+1. **Rebuild:**
+   ```bash
+   ./build.sh
+   ```
+
+2. **Replace the old executable** with the new one in `dist/`
+
+### Notes
+
+- The executable is self-contained and doesn't require Python installation
+- Data files are embedded in the executable
+- The application will create a `data/` directory in the same location as the executable for storing CSV files
+
 ## Usage
 
 ### Getting Started
