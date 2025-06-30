@@ -9,7 +9,7 @@ from datetime import datetime
 
 from models.leader import Leader, POEF_DRINK_PRICE, POEF_SAF_PRICE
 from models.expense import ExpenseCategory
-from base_components import BaseTab, DataTable, FormDialog, ActionButton
+from .base_components import BaseTab, DataTable, FormDialog, ActionButton
 
 class LeaderFormDialog(FormDialog):
     """Dialog for adding/editing leaders."""
