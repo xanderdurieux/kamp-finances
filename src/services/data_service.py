@@ -1,10 +1,10 @@
 """
 Data service for Kamp Finances application.
-Handles data persistence and loading using CSV files.
+Handles data persistence and loading using SQLite database.
 """
 
-import csv
 import os
+import sqlite3
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -13,211 +13,211 @@ from models.receipt import Receipt
 from models.expense import Expense
 
 class DataService:
-    """Service for managing data persistence using CSV files."""
+    """Service for managing data persistence using SQLite."""
     
     def __init__(self, data_dir: str = "data"):
         self.data_dir = data_dir
         self._ensure_data_directory()
-    
+        self.db_path = os.path.join(self.data_dir, "kamp_finances.db")
+        self._ensure_tables()
+
     def _ensure_data_directory(self):
         """Create data directory if it doesn't exist."""
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
-    
-    def _get_file_path(self, filename: str) -> str:
-        """Get full path for a data file."""
-        return os.path.join(self.data_dir, filename)
-    
+
+    def _get_connection(self):
+        return sqlite3.connect(self.db_path)
+
+    def _ensure_tables(self):
+        """Create tables if they don't exist, and add paid_amount if missing."""
+        with self._get_connection() as conn:
+            c = conn.cursor()
+            # Leaders table
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS leaders (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    total_pa_expenses REAL DEFAULT 0.0,
+                    poef_drink_count INTEGER DEFAULT 0,
+                    poef_cigarette_count INTEGER DEFAULT 0,
+                    pa_purchases TEXT DEFAULT '',
+                    paid_amount REAL DEFAULT 0.0
+                )
+            ''')
+            # Try to add paid_amount if missing (for upgrades)
+            try:
+                c.execute('ALTER TABLE leaders ADD COLUMN paid_amount REAL DEFAULT 0.0')
+            except Exception:
+                pass  # Already exists
+            # Receipts table
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS receipts (
+                    id TEXT PRIMARY KEY,
+                    date TEXT NOT NULL,
+                    store_name TEXT DEFAULT 'Colruyt',
+                    total_amount REAL DEFAULT 0.0,
+                    groepskas_total REAL DEFAULT 0.0,
+                    poef_total REAL DEFAULT 0.0,
+                    pa_total REAL DEFAULT 0.0
+                )
+            ''')
+            # Receipt items table
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS receipt_items (
+                    id TEXT,
+                    name TEXT NOT NULL,
+                    price REAL NOT NULL,
+                    quantity REAL DEFAULT 1.0,
+                    category TEXT DEFAULT 'Groepskas',
+                    date TEXT,
+                    receipt_id TEXT,
+                    PRIMARY KEY (id, receipt_id),
+                    FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
+                )
+            ''')
+            conn.commit()
+
     def load_leaders(self) -> List[Leader]:
-        """Load leaders from CSV file."""
-        file_path = self._get_file_path("leaders.csv")
-        
-        if not os.path.exists(file_path):
-            return []
-        
+        """Load leaders from SQLite database."""
         leaders = []
-        try:
-            with open(file_path, 'r', encoding='utf-8', newline='') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    try:
-                        # Convert string representations back to proper types
-                        leader_data = {
-                            "id": row["id"],
-                            "name": row["name"],
-                            "total_pa_expenses": float(row.get("total_pa_expenses", "0.0")),
-                            "poef_drink_count": int(row.get("poef_drink_count", "0")),
-                            "poef_saf_count": int(row.get("poef_saf_count", "0")),
-                            "pa_purchases": self._parse_pa_purchases(row.get("pa_purchases", ""))
-                        }
-                        leaders.append(Leader.from_dict(leader_data))
-                    except (ValueError, KeyError) as e:
-                        print(f"Error parsing leader row: {e}, skipping...")
-                        continue
-        except Exception as e:
-            print(f"Error loading leaders: {e}")
-            return []
-        
+        with self._get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT id, name, total_pa_expenses, poef_drink_count, poef_cigarette_count, pa_purchases, paid_amount FROM leaders")
+            rows = c.fetchall()
+            for row in rows:
+                leader_data = {
+                    "id": row[0],
+                    "name": row[1],
+                    "total_pa_expenses": float(row[2]),
+                    "poef_drink_count": int(row[3]),
+                    "poef_cigarette_count": int(row[4]),
+                    "pa_purchases": self._parse_pa_purchases(row[5]),
+                    "paid_amount": float(row[6]) if row[6] is not None else 0.0
+                }
+                leaders.append(Leader.from_dict(leader_data))
         return leaders
-    
+
     def save_leaders(self, leaders: List[Leader]):
-        """Save leaders to CSV file."""
-        file_path = self._get_file_path("leaders.csv")
-        
-        if not leaders:
-            # Create empty file with headers
-            fieldnames = ["id", "name", "total_pa_expenses", 
-                         "poef_drink_count", "poef_saf_count", "pa_purchases"]
-            with open(file_path, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-            return
-        
-        try:
-            fieldnames = ["id", "name", "total_pa_expenses", 
-                        "poef_drink_count", "poef_saf_count", "pa_purchases"]
-            
-            with open(file_path, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                for leader in leaders:
-                    leader_dict = leader.to_dict()
-                    # Convert pa_purchases list to string representation
-                    leader_dict["pa_purchases"] = self._serialize_pa_purchases(leader.pa_purchases)
-                    writer.writerow(leader_dict)
-        except Exception as e:
-            print(f"Error saving leaders: {e}")
-    
+        """Save leaders to SQLite database."""
+        with self._get_connection() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM leaders")  # Clear table before saving all
+            for leader in leaders:
+                leader_dict = leader.to_dict()
+                pa_purchases_str = self._serialize_pa_purchases(leader.pa_purchases)
+                c.execute('''
+                    INSERT INTO leaders (id, name, total_pa_expenses, poef_drink_count, poef_cigarette_count, pa_purchases, paid_amount)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    leader_dict["id"],
+                    leader_dict["name"],
+                    leader_dict["total_pa_expenses"],
+                    leader_dict["poef_drink_count"],
+                    leader_dict["poef_cigarette_count"],
+                    pa_purchases_str,
+                    leader_dict["paid_amount"]
+                ))
+            conn.commit()
+
     def load_receipts(self) -> List[Receipt]:
-        """Load receipts from CSV files."""
+        """Load receipts from SQLite database."""
         receipts = []
-        
-        # Load receipt headers
-        headers_file = self._get_file_path("receipts.csv")
-        if not os.path.exists(headers_file):
-            return receipts
-        
-        try:
-            with open(headers_file, 'r', encoding='utf-8', newline='') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    try:
-                        receipt_data = {
-                            "id": row["id"],
-                            "date": row["date"],
-                            "store_name": row.get("store_name", "Colruyt"),
-                            "total_amount": float(row.get("total_amount", "0.0")),
-                            "groepskas_total": float(row.get("groepskas_total", "0.0")),
-                            "poef_total": float(row.get("poef_total", "0.0")),
-                            "pa_total": float(row.get("pa_total", "0.0"))
-                        }
-                        
-                        # Load items for this receipt
-                        items = self._load_receipt_items(row["id"])
-                        receipt = Receipt.from_dict(receipt_data)
-                        receipt.items = items
-                        receipts.append(receipt)
-                    except (ValueError, KeyError) as e:
-                        print(f"Error parsing receipt row: {e}, skipping...")
-                        continue
-        except Exception as e:
-            print(f"Error loading receipts: {e}")
-            return []
-        
+        with self._get_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT id, date, store_name, total_amount, groepskas_total, poef_total, pa_total FROM receipts")
+            rows = c.fetchall()
+            for row in rows:
+                receipt_data = {
+                    "id": row[0],
+                    "date": row[1],
+                    "store_name": row[2],
+                    "total_amount": float(row[3]),
+                    "groepskas_total": float(row[4]),
+                    "poef_total": float(row[5]),
+                    "pa_total": float(row[6])
+                }
+                items = self._load_receipt_items(row[0], conn)
+                receipt = Receipt.from_dict(receipt_data)
+                receipt.items = items
+                receipts.append(receipt)
         return receipts
-    
+
     def save_receipts(self, receipts: List[Receipt]):
-        """Save receipts to CSV files."""
-        # Save receipt headers
-        headers_file = self._get_file_path("receipts.csv")
-        
-        if not receipts:
-            # Create empty file with headers
-            fieldnames = ["id", "date", "store_name", "total_amount", 
-                         "groepskas_total", "poef_total", "pa_total"]
-            with open(headers_file, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-            return
-        
-        try:
-            fieldnames = ["id", "date", "store_name", "total_amount", 
-                         "groepskas_total", "poef_total", "pa_total"]
-            
-            with open(headers_file, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                for receipt in receipts:
-                    receipt_dict = receipt.to_dict()
-                    # Remove items from dict as they're saved separately
-                    del receipt_dict["items"]
-                    writer.writerow(receipt_dict)
-                    
-                    # Save items for this receipt
-                    self._save_receipt_items(receipt.id, receipt.items)
-        except Exception as e:
-            print(f"Error saving receipts: {e}")
-    
-    def _load_receipt_items(self, receipt_id: str) -> List[Expense]:
-        """Load items for a specific receipt."""
-        items_file = self._get_file_path(f"receipt_items_{receipt_id}.csv")
-        
-        if not os.path.exists(items_file):
-            return []
-        
+        """Save receipts to SQLite database."""
+        with self._get_connection() as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM receipts")
+            c.execute("DELETE FROM receipt_items")
+            for receipt in receipts:
+                receipt_dict = receipt.to_dict()
+                c.execute('''
+                    INSERT INTO receipts (id, date, store_name, total_amount, groepskas_total, poef_total, pa_total)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    receipt_dict["id"],
+                    receipt_dict["date"],
+                    receipt_dict["store_name"],
+                    receipt_dict["total_amount"],
+                    receipt_dict["groepskas_total"],
+                    receipt_dict["poef_total"],
+                    receipt_dict["pa_total"]
+                ))
+                self._save_receipt_items(receipt.id, receipt.items, conn)
+            conn.commit()
+
+    def _load_receipt_items(self, receipt_id: str, conn=None) -> List[Expense]:
+        """Load items for a specific receipt from SQLite."""
+        close_conn = False
+        if conn is None:
+            conn = self._get_connection()
+            close_conn = True
         items = []
-        try:
-            with open(items_file, 'r', encoding='utf-8', newline='') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    try:
-                        item_data = {
-                            "id": row.get("id", ""),
-                            "name": row["name"],
-                            "price": float(row["price"]),
-                            "quantity": float(row.get("quantity", "1.0")),
-                            "category": row.get("category", "Groepskas"),
-                            "date": row.get("date", ""),
-                            "receipt_id": row.get("receipt_id", receipt_id)
-                        }
-                        items.append(Expense.from_dict(item_data))
-                    except (ValueError, KeyError) as e:
-                        print(f"Error parsing receipt item row: {e}, skipping...")
-                        continue
-        except Exception as e:
-            print(f"Error loading receipt items for {receipt_id}: {e}")
-        
+        c = conn.cursor()
+        c.execute("SELECT id, name, price, quantity, category, date, receipt_id FROM receipt_items WHERE receipt_id = ?", (receipt_id,))
+        rows = c.fetchall()
+        for row in rows:
+            item_data = {
+                "id": row[0],
+                "name": row[1],
+                "price": float(row[2]),
+                "quantity": float(row[3]),
+                "category": row[4],
+                "date": row[5],
+                "receipt_id": row[6]
+            }
+            items.append(Expense.from_dict(item_data))
+        if close_conn:
+            conn.close()
         return items
-    
-    def _save_receipt_items(self, receipt_id: str, items: List[Expense]):
-        """Save items for a specific receipt."""
-        items_file = self._get_file_path(f"receipt_items_{receipt_id}.csv")
-        
-        if not items:
-            # Create empty file with headers
-            fieldnames = ["id", "name", "price", "quantity", "category", "date", "receipt_id"]
-            with open(items_file, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-            return
-        
-        try:
-            fieldnames = ["id", "name", "price", "quantity", "category", "date", "receipt_id"]
-            
-            with open(items_file, 'w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                for item in items:
-                    item_dict = item.to_dict()
-                    writer.writerow(item_dict)
-        except Exception as e:
-            print(f"Error saving receipt items for {receipt_id}: {e}")
+
+    def _save_receipt_items(self, receipt_id: str, items: List[Expense], conn=None):
+        """Save items for a specific receipt to SQLite."""
+        close_conn = False
+        if conn is None:
+            conn = self._get_connection()
+            close_conn = True
+        c = conn.cursor()
+        for item in items:
+            item_dict = item.to_dict()
+            c.execute('''
+                INSERT INTO receipt_items (id, name, price, quantity, category, date, receipt_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                item_dict.get("id", ""),
+                item_dict["name"],
+                item_dict["price"],
+                item_dict.get("quantity", 1.0),
+                item_dict.get("category", "Groepskas"),
+                item_dict.get("date", ""),
+                receipt_id
+            ))
+        if close_conn:
+            conn.commit()
+            conn.close()
     
     def _serialize_pa_purchases(self, purchases: Dict[str, float]) -> str:
-        """Convert pa_purchases dictionary to CSV-compatible string."""
+        """Convert pa_purchases dictionary to serializable string."""
         if not purchases:
             return ""
         
@@ -251,21 +251,18 @@ class DataService:
         self.save_receipts(receipts)
     
     def export_summary(self, leaders: List[Leader], receipts: List[Receipt], filename: str = None):
-        """Export a summary report to CSV."""
+        """Export a summary report to CSV (from in-memory data)."""
+        import csv
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"summary_{timestamp}.csv"
-        
-        file_path = self._get_file_path(filename)
-        
+        file_path = os.path.join(self.data_dir, filename)
         try:
             with open(file_path, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
-                
                 # Write header
                 writer.writerow(["Summary Report", datetime.now().isoformat()])
                 writer.writerow([])
-                
                 # Write totals
                 writer.writerow(["Category", "Total"])
                 writer.writerow(["Total Groepskas", sum(receipt.groepskas_total for receipt in receipts)])
@@ -273,21 +270,21 @@ class DataService:
                 writer.writerow(["Total PA", sum(receipt.pa_total for receipt in receipts)])
                 writer.writerow(["Total Leaders Expenses", sum(leader.get_total_expenses() for leader in leaders)])
                 writer.writerow([])
-                
                 # Write leaders summary
                 writer.writerow(["Leaders Summary"])
-                writer.writerow(["Name", "Total PA Expenses", "POEF Drinks", "POEF SAFs", "POEF Total", "Total Expenses"])
+                writer.writerow(["Name", "Total PA Expenses", "POEF Drinks", "POEF Cigarettes", "POEF Total", "Total Expenses", "Paid Amount", "Remaining to Pay"])
                 for leader in leaders:
                     writer.writerow([
                         leader.name,
                         leader.total_pa_expenses,
                         leader.poef_drink_count,
-                        leader.poef_saf_count,
+                        leader.poef_cigarette_count,
                         leader.get_poef_total(),
-                        leader.get_total_expenses()
+                        leader.get_total_expenses(),
+                        leader.paid_amount,
+                        leader.get_remaining_to_pay()
                     ])
                 writer.writerow([])
-                
                 # Write receipts summary
                 writer.writerow(["Receipts Summary"])
                 writer.writerow(["Date", "Store", "Total Amount", "Groepskas", "POEF", "PA"])
@@ -300,34 +297,22 @@ class DataService:
                         receipt.poef_total,
                         receipt.pa_total
                     ])
-            
             return file_path
         except Exception as e:
             print(f"Error exporting summary: {e}")
             return None
-    
+
     def backup_data(self):
-        """Create a backup of all data files."""
+        """Create a backup of the SQLite database file."""
+        from shutil import copy2
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_dir = os.path.join(self.data_dir, f"backup_{timestamp}")
-        
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
-        
-        # Get all CSV files to backup
-        files_to_backup = []
-        for filename in os.listdir(self.data_dir):
-            if filename.endswith('.csv'):
-                files_to_backup.append(filename)
-        
-        for filename in files_to_backup:
-            source_path = self._get_file_path(filename)
-            backup_path = os.path.join(backup_dir, filename)
-            try:
-                with open(source_path, 'r', encoding='utf-8') as source:
-                    with open(backup_path, 'w', encoding='utf-8') as backup:
-                        backup.write(source.read())
-            except Exception as e:
-                print(f"Error backing up {filename}: {e}")
-        
-        return backup_dir 
+        db_backup_path = os.path.join(backup_dir, "kamp_finances.db")
+        try:
+            copy2(self.db_path, db_backup_path)
+            return backup_dir
+        except Exception as e:
+            print(f"Error backing up database: {e}")
+            return None 
