@@ -10,6 +10,8 @@
 # dataclasses - Data classes (built-in, Python 3.7+)
 # enum - Enumerations (built-in)
 # re - Regular expressions (built-in)
+# sqlite3 is used for SQL storage (built-in with Python)
+# If you want to use SQLAlchemy or another ORM, add it here
 
 # No external dependencies required!
 # This application uses only Python standard library modules.

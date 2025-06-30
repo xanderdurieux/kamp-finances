@@ -7,7 +7,7 @@ from tkinter import ttk, messagebox, filedialog
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from models.leader import Leader, POEF_DRINK_PRICE, POEF_SAF_PRICE
+from models.leader import Leader, POEF_DRINK_PRICE, POEF_CIGARETTE_PRICE
 from models.expense import ExpenseCategory
 from .base_components import BaseTab, DataTable, FormDialog, ActionButton
 
@@ -140,6 +140,34 @@ class LeadersTab(BaseTab):
         self.total_expenses_label = ttk.Label(summary_right, text="Total: €0.00", style="Header.TLabel")
         self.total_expenses_label.pack(anchor=tk.E, pady=1)
         
+        # Paid Amount frame
+        paid_frame = ttk.LabelFrame(self.leader_info_frame, text="Payment Information")
+        paid_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Paid amount controls
+        paid_controls_frame = ttk.Frame(paid_frame)
+        paid_controls_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        ttk.Label(paid_controls_frame, text="Amount Already Paid (€):").pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.paid_amount_var = tk.StringVar()
+        self.paid_amount_entry = ttk.Entry(paid_controls_frame, textvariable=self.paid_amount_var, width=15)
+        self.paid_amount_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Add event bindings for auto-save on paid amount entry
+        self.paid_amount_entry.bind('<FocusOut>', self.on_paid_amount_change)
+        self.paid_amount_entry.bind('<Return>', self.on_paid_amount_change)
+        
+        # Payment summary labels
+        payment_summary_frame = ttk.Frame(paid_controls_frame)
+        payment_summary_frame.pack(side=tk.RIGHT)
+        
+        self.paid_amount_label = ttk.Label(payment_summary_frame, text="Paid: €0.00")
+        self.paid_amount_label.pack(anchor=tk.E, pady=1)
+        
+        self.remaining_to_pay_label = ttk.Label(payment_summary_frame, text="Remaining: €0.00", style="Header.TLabel")
+        self.remaining_to_pay_label.pack(anchor=tk.E, pady=1)
+        
         # POEF Management frame
         poef_frame = ttk.LabelFrame(self.leader_info_frame, text="POEF Management")
         poef_frame.pack(fill=tk.X, pady=(0, 10))
@@ -190,7 +218,7 @@ class LeadersTab(BaseTab):
         self.cigarettes_increment_btn = ttk.Button(cigarettes_controls, text="+", width=3, command=lambda: self.increment_poef_count("cigarettes"))
         self.cigarettes_increment_btn.pack(side=tk.LEFT)
         
-        ttk.Label(poef_controls_frame, text=f"€{POEF_SAF_PRICE:.2f}").grid(row=2, column=2, sticky=tk.W, padx=(0, 20), pady=5)
+        ttk.Label(poef_controls_frame, text=f"€{POEF_CIGARETTE_PRICE:.2f}").grid(row=2, column=2, sticky=tk.W, padx=(0, 20), pady=5)
         self.cigarettes_total_label = ttk.Label(poef_controls_frame, text="€0.00")
         self.cigarettes_total_label.grid(row=2, column=3, sticky=tk.W, pady=5)
         
@@ -301,7 +329,8 @@ class LeadersTab(BaseTab):
         self.leader_info_frame.pack(fill=tk.BOTH, expand=True)
         
         self.drinks_var.set(str(self.selected_leader.poef_drink_count))
-        self.cigarettes_var.set(str(self.selected_leader.poef_saf_count))
+        self.cigarettes_var.set(str(self.selected_leader.poef_cigarette_count))
+        self.paid_amount_var.set(str(self.selected_leader.paid_amount))
         
         # Add event bindings for auto-save on direct entry
         self.drinks_entry.bind('<FocusOut>', self.on_poef_entry_change)
@@ -314,9 +343,14 @@ class LeadersTab(BaseTab):
         self.poef_total_label.config(text=f"POEF Total: €{self.selected_leader.get_poef_total():.2f}")
         self.total_expenses_label.config(text=f"Total: €{self.selected_leader.get_total_expenses():.2f}")
         
+        # Update payment summary labels
+        self.paid_amount_label.config(text=f"Paid: €{self.selected_leader.paid_amount:.2f}")
+        remaining = self.selected_leader.get_remaining_to_pay()
+        self.remaining_to_pay_label.config(text=f"Remaining: €{remaining:.2f}")
+        
         # Update POEF totals
         self.drinks_total_label.config(text=f"€{self.selected_leader.poef_drink_count * POEF_DRINK_PRICE:.2f}")
-        self.cigarettes_total_label.config(text=f"€{self.selected_leader.poef_saf_count * POEF_SAF_PRICE:.2f}")
+        self.cigarettes_total_label.config(text=f"€{self.selected_leader.poef_cigarette_count * POEF_CIGARETTE_PRICE:.2f}")
         
         # Populate detailed summary
         self.populate_detailed_summary()
@@ -338,16 +372,16 @@ class LeadersTab(BaseTab):
                 self.show_error("Counts cannot be negative")
                 # Reset to current values
                 self.drinks_var.set(str(self.selected_leader.poef_drink_count))
-                self.cigarettes_var.set(str(self.selected_leader.poef_saf_count))
+                self.cigarettes_var.set(str(self.selected_leader.poef_cigarette_count))
                 return
             
             # Update leader counts
             self.selected_leader.poef_drink_count = drinks
-            self.selected_leader.poef_saf_count = cigarettes
+            self.selected_leader.poef_cigarette_count = cigarettes
             
             # Update totals display
             self.drinks_total_label.config(text=f"€{drinks * POEF_DRINK_PRICE:.2f}")
-            self.cigarettes_total_label.config(text=f"€{cigarettes * POEF_SAF_PRICE:.2f}")
+            self.cigarettes_total_label.config(text=f"€{cigarettes * POEF_CIGARETTE_PRICE:.2f}")
             
             # Auto-save the changes
             self.main_window.save_data()
@@ -358,7 +392,7 @@ class LeadersTab(BaseTab):
             self.show_error("Please enter valid numbers for POEF counts")
             # Reset to current values
             self.drinks_var.set(str(self.selected_leader.poef_drink_count))
-            self.cigarettes_var.set(str(self.selected_leader.poef_saf_count))
+            self.cigarettes_var.set(str(self.selected_leader.poef_cigarette_count))
     
     def populate_detailed_summary(self):
         """Populate the detailed summary text widget."""
@@ -400,7 +434,7 @@ class LeadersTab(BaseTab):
         summary_lines.append("POEF EXPENSES:")
         summary_lines.append("-" * 20)
         summary_lines.append(f"  Drinks: {self.selected_leader.poef_drink_count} × €{POEF_DRINK_PRICE:.2f} = €{self.selected_leader.poef_drink_count * POEF_DRINK_PRICE:.2f}")
-        summary_lines.append(f"  Cigarettes: {self.selected_leader.poef_saf_count} × €{POEF_SAF_PRICE:.2f} = €{self.selected_leader.poef_saf_count * POEF_SAF_PRICE:.2f}")
+        summary_lines.append(f"  Cigarettes: {self.selected_leader.poef_cigarette_count} × €{POEF_CIGARETTE_PRICE:.2f} = €{self.selected_leader.poef_cigarette_count * POEF_CIGARETTE_PRICE:.2f}")
         summary_lines.append(f"Total POEF Expenses: €{self.selected_leader.get_poef_total():.2f}")
         summary_lines.append("")
         
@@ -410,6 +444,14 @@ class LeadersTab(BaseTab):
         summary_lines.append(f"PA Expenses: €{self.selected_leader.total_pa_expenses:.2f}")
         summary_lines.append(f"POEF Expenses: €{self.selected_leader.get_poef_total():.2f}")
         summary_lines.append(f"Grand Total: €{self.selected_leader.get_total_expenses():.2f}")
+        summary_lines.append("")
+        
+        # Payment Information
+        summary_lines.append("PAYMENT INFORMATION:")
+        summary_lines.append("-" * 20)
+        summary_lines.append(f"Amount Already Paid: €{self.selected_leader.paid_amount:.2f}")
+        remaining = self.selected_leader.get_remaining_to_pay()
+        summary_lines.append(f"Remaining to Pay: €{remaining:.2f}")
         
         # Insert the summary text
         self.summary_text.insert("1.0", "\n".join(summary_lines))
@@ -508,7 +550,7 @@ class LeadersTab(BaseTab):
                 return
             
             self.selected_leader.poef_drink_count = drinks
-            self.selected_leader.poef_saf_count = cigarettes
+            self.selected_leader.poef_cigarette_count = cigarettes
             
             self.main_window.save_data()
             self.refresh_data()
@@ -538,8 +580,8 @@ class LeadersTab(BaseTab):
                 current_value = int(self.cigarettes_var.get())
                 new_value = current_value + 1
                 self.cigarettes_var.set(str(new_value))
-                self.cigarettes_total_label.config(text=f"€{new_value * POEF_SAF_PRICE:.2f}")
-                self.selected_leader.poef_saf_count = new_value
+                self.cigarettes_total_label.config(text=f"€{new_value * POEF_CIGARETTE_PRICE:.2f}")
+                self.selected_leader.poef_cigarette_count = new_value
             
             # Auto-save the changes
             self.main_window.save_data()
@@ -554,8 +596,8 @@ class LeadersTab(BaseTab):
                 self.selected_leader.poef_drink_count = 1
             elif count_type == "cigarettes":
                 self.cigarettes_var.set("1")
-                self.cigarettes_total_label.config(text=f"€{POEF_SAF_PRICE:.2f}")
-                self.selected_leader.poef_saf_count = 1
+                self.cigarettes_total_label.config(text=f"€{POEF_CIGARETTE_PRICE:.2f}")
+                self.selected_leader.poef_cigarette_count = 1
             
             # Auto-save the changes
             self.main_window.save_data()
@@ -583,8 +625,8 @@ class LeadersTab(BaseTab):
                 if current_value > 0:
                     new_value = current_value - 1
                     self.cigarettes_var.set(str(new_value))
-                    self.cigarettes_total_label.config(text=f"€{new_value * POEF_SAF_PRICE:.2f}")
-                    self.selected_leader.poef_saf_count = new_value
+                    self.cigarettes_total_label.config(text=f"€{new_value * POEF_CIGARETTE_PRICE:.2f}")
+                    self.selected_leader.poef_cigarette_count = new_value
             
             # Auto-save the changes
             self.main_window.save_data()
@@ -600,7 +642,7 @@ class LeadersTab(BaseTab):
             elif count_type == "cigarettes":
                 self.cigarettes_var.set("0")
                 self.cigarettes_total_label.config(text="€0.00")
-                self.selected_leader.poef_saf_count = 0
+                self.selected_leader.poef_cigarette_count = 0
             
             # Auto-save the changes
             self.main_window.save_data()
@@ -637,14 +679,14 @@ class LeadersTab(BaseTab):
                     f.write(f"Drinks Count: {self.selected_leader.poef_drink_count}\n")
                     f.write(f"Drinks Price: €{POEF_DRINK_PRICE:.2f} each\n")
                     f.write(f"Drinks Total: €{self.selected_leader.poef_drink_count * POEF_DRINK_PRICE:.2f}\n\n")
-                    f.write(f"Cigarettes Count: {self.selected_leader.poef_saf_count}\n")
-                    f.write(f"Cigarettes Price: €{POEF_SAF_PRICE:.2f} each\n")
-                    f.write(f"Cigarettes Total: €{self.selected_leader.poef_saf_count * POEF_SAF_PRICE:.2f}\n\n")
+                    f.write(f"Cigarettes Count: {self.selected_leader.poef_cigarette_count}\n")
+                    f.write(f"Cigarettes Price: €{POEF_CIGARETTE_PRICE:.2f} each\n")
+                    f.write(f"Cigarettes Total: €{self.selected_leader.poef_cigarette_count * POEF_CIGARETTE_PRICE:.2f}\n\n")
                     
                     f.write("SUMMARY:\n")
                     f.write("-" * 20 + "\n")
                     f.write(f"PA Expenses: €{self.selected_leader.total_pa_expenses:.2f}\n")
-                    f.write(f"POEF Total: €{self.selected_leader.get_poef_total():.2f}\n")
+                    f.write(f"POEF Expenses: €{self.selected_leader.get_poef_total():.2f}\n")
                     f.write(f"Grand Total: €{self.selected_leader.get_total_expenses():.2f}\n")
                 
                 self.show_info(f"Leader report saved to {filepath}")
@@ -747,4 +789,29 @@ class LeadersTab(BaseTab):
                 self.show_info(f"Leader summary exported to {filepath}")
                 
             except Exception as e:
-                self.show_error(f"Error exporting summary: {str(e)}") 
+                self.show_error(f"Error exporting summary: {str(e)}")
+
+    def on_paid_amount_change(self, event):
+        """Handle paid amount entry changes for auto-save."""
+        if not self.selected_leader:
+            return
+        
+        # Store current selection
+        selected_leader_id = self.selected_leader.id
+        
+        try:
+            # Get the new paid amount
+            paid_amount = float(self.paid_amount_var.get())
+            
+            # Update the selected leader's paid amount
+            self.selected_leader.paid_amount = paid_amount
+            
+            # Auto-save the changes
+            self.main_window.save_data()
+            self.refresh_data_preserve_selection(selected_leader_id)
+            self.populate_detailed_summary()
+            
+        except ValueError:
+            self.show_error("Please enter a valid number for the paid amount")
+            # Reset to current value
+            self.paid_amount_var.set(str(self.selected_leader.paid_amount))

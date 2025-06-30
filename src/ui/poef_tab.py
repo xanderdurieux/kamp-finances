@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 from datetime import datetime
 
 from models.expense import Expense, ExpenseCategory
-from models.leader import Leader, POEF_DRINK_PRICE, POEF_SAF_PRICE
+from models.leader import Leader, POEF_DRINK_PRICE, POEF_CIGARETTE_PRICE
 from .base_components import BaseTab, DataTable, FormDialog
 
 class POEFCountDialog(FormDialog):
@@ -28,8 +28,8 @@ class POEFCountDialog(FormDialog):
                 "to": 1000
             })
             fields.append({
-                "name": f"safs_{leader.id}",
-                "label": f"{leader.name} - SAFs:",
+                "name": f"cigarettes_{leader.id}",
+                "label": f"{leader.name} - Cigarettes:",
                 "type": "spinbox",
                 "from_": 0,
                 "to": 1000
@@ -40,16 +40,16 @@ class POEFCountDialog(FormDialog):
         # Set current values
         for leader in leaders:
             drinks_field = f"drinks_{leader.id}"
-            safs_field = f"safs_{leader.id}"
+            cigarettes_field = f"cigarettes_{leader.id}"
             self.set_field_value(drinks_field, str(leader.poef_drink_count))
-            self.set_field_value(safs_field, str(leader.poef_saf_count))
+            self.set_field_value(cigarettes_field, str(leader.poef_cigarette_count))
     
     def get_counts(self) -> Dict[str, Dict[str, int]]:
         """Get the POEF counts for each leader."""
         counts = {}
         for leader in self.leaders:
             drinks_field = f"drinks_{leader.id}"
-            safs_field = f"safs_{leader.id}"
+            cigarettes_field = f"cigarettes_{leader.id}"
             
             # Get values with safe conversion
             try:
@@ -59,14 +59,14 @@ class POEFCountDialog(FormDialog):
                 drinks_count = 0
                 
             try:
-                safs_value = self.get_field_value(safs_field)
-                safs_count = int(safs_value) if safs_value else 0
+                cigarettes_value = self.get_field_value(cigarettes_field)
+                cigarettes_count = int(cigarettes_value) if cigarettes_value else 0
             except (ValueError, TypeError):
-                safs_count = 0
+                cigarettes_count = 0
             
             counts[leader.id] = {
                 "drinks": drinks_count,
-                "safs": safs_count
+                "cigarettes": cigarettes_count
             }
         return counts
 
@@ -135,7 +135,7 @@ class POEFTab(BaseTab):
         self.total_paid_label = ttk.Label(summary_frame, text="Total Paid: €0.00")
         self.total_paid_label.pack(side=tk.LEFT, padx=(0, 20))
         
-        self.difference_label = ttk.Label(summary_frame, text="Difference: €0.00")
+        self.difference_label = ttk.Label(summary_frame, text="Remaining: €0.00 (Balanced)")
         self.difference_label.pack(side=tk.LEFT)
         
         # Leader consumption table
@@ -143,9 +143,11 @@ class POEFTab(BaseTab):
             {"name": "name", "display": "Leader", "width": 150},
             {"name": "drinks", "display": "Drinks", "width": 80, "anchor": tk.E},
             {"name": "drinks_total", "display": "Drinks Total (€)", "width": 120, "anchor": tk.E},
-            {"name": "safs", "display": "SAFs", "width": 80, "anchor": tk.E},
-            {"name": "safs_total", "display": "SAFs Total (€)", "width": 120, "anchor": tk.E},
-            {"name": "total", "display": "Total (€)", "width": 100, "anchor": tk.E}
+            {"name": "cigarettes", "display": "Cigarettes", "width": 80, "anchor": tk.E},
+            {"name": "cigarettes_total", "display": "Cigarettes Total (€)", "width": 120, "anchor": tk.E},
+            {"name": "total", "display": "Total (€)", "width": 100, "anchor": tk.E},
+            {"name": "paid", "display": "Paid (€)", "width": 100, "anchor": tk.E},
+            {"name": "remaining", "display": "Remaining (€)", "width": 100, "anchor": tk.E}
         ]
         
         self.consumption_table = DataTable(consumption_frame, columns, height=10)
@@ -192,35 +194,46 @@ class POEFTab(BaseTab):
         # Add leader consumption to table
         for leader in leaders:
             drinks_total = leader.poef_drink_count * POEF_DRINK_PRICE
-            safs_total = leader.poef_saf_count * POEF_SAF_PRICE
-            total = drinks_total + safs_total
-            
+            cigarettes_total = leader.poef_cigarette_count * POEF_CIGARETTE_PRICE
+            total = drinks_total + cigarettes_total
+            remaining = leader.get_remaining_to_pay()
+
             self.consumption_table.add_row([
                 leader.name,
                 str(leader.poef_drink_count),
                 f"€{drinks_total:.2f}",
-                str(leader.poef_saf_count),
-                f"€{safs_total:.2f}",
-                f"€{total:.2f}"
+                str(leader.poef_cigarette_count),
+                f"€{cigarettes_total:.2f}",
+                f"€{total:.2f}",
+                f"€{leader.paid_amount:.2f}",
+                f"€{remaining:.2f}"
             ])
     
     def update_summary(self):
         """Update the summary labels."""
         receipts = self.main_window.get_receipts()
-        leaders = self.main_window.get_leaders()
+        leaders = self.main_window.get_leaders`()
         
         # Calculate total bought (from receipts)
         total_bought = 0.0
         for receipt in receipts:
             total_bought += receipt.poef_total
         
-        # Calculate total paid (from leader consumption)
+        # Calculate total to pay (from leader consumption)
+        total_to_pay = 0.0
+        for leader in leaders:
+            total_to_pay += leader.get_poef_total()
+        
+        # Calculate total paid
         total_paid = 0.0
         for leader in leaders:
-            total_paid += leader.get_poef_total()
+            total_paid += leader.paid_amount
         
-        # Calculate difference
-        difference = total_bought - total_paid
+        # Calculate remaining to pay
+        total_remaining = total_to_pay - total_paid
+        
+        # Calculate difference (bought vs to pay)
+        difference = total_bought - total_to_pay
         
         # Update labels
         self.total_bought_label.config(text=f"Total Bought: €{total_bought:.2f}")
@@ -228,11 +241,11 @@ class POEFTab(BaseTab):
         
         # Color code the difference
         if abs(difference) < 0.01:  # Within 1 cent
-            self.difference_label.config(text=f"Difference: €{difference:.2f}", foreground="green")
+            self.difference_label.config(text=f"Remaining: €{total_remaining:.2f} (Balanced)", foreground="green")
         elif difference > 0:
-            self.difference_label.config(text=f"Difference: €{difference:.2f} (Overbought)", foreground="orange")
+            self.difference_label.config(text=f"Remaining: €{total_remaining:.2f} (Overbought)", foreground="orange")
         else:
-            self.difference_label.config(text=f"Difference: €{abs(difference):.2f} (Underbought)", foreground="red")
+            self.difference_label.config(text=f"Remaining: €{total_remaining:.2f} (Underbought)", foreground="red")
     
     def update_poef_counts(self):
         """Update POEF counts for all leaders."""
@@ -251,7 +264,7 @@ class POEFTab(BaseTab):
             for leader in leaders:
                 leader_counts = counts.get(leader.id, {})
                 leader.poef_drink_count = leader_counts.get("drinks", 0)
-                leader.poef_saf_count = leader_counts.get("safs", 0)
+                leader.poef_cigarette_count = leader_counts.get("cigarettes", 0)
             
             self.main_window.save_data()
             self.refresh_consumption()
@@ -264,8 +277,10 @@ class POEFTab(BaseTab):
         
         # Calculate totals
         total_bought = sum(receipt.poef_total for receipt in receipts)
-        total_paid = sum(leader.get_poef_total() for leader in leaders)
-        difference = total_bought - total_paid
+        total_to_pay = sum(leader.get_poef_total() for leader in leaders)
+        total_paid = sum(leader.paid_amount for leader in leaders)
+        total_remaining = total_to_pay - total_paid
+        difference = total_bought - total_to_pay
         
         # Get POEF items breakdown
         poef_items = []
@@ -285,27 +300,29 @@ class POEFTab(BaseTab):
         leader_breakdown = []
         for leader in leaders:
             drinks_total = leader.poef_drink_count * POEF_DRINK_PRICE
-            safs_total = leader.poef_saf_count * POEF_SAF_PRICE
-            total = drinks_total + safs_total
+            cigarettes_total = leader.poef_cigarette_count * POEF_CIGARETTE_PRICE
+            total = drinks_total + cigarettes_total
             
             leader_breakdown.append({
                 "name": leader.name,
                 "drinks_count": leader.poef_drink_count,
                 "drinks_total": drinks_total,
-                "safs_count": leader.poef_saf_count,
-                "safs_total": safs_total,
+                "cigarettes_count": leader.poef_cigarette_count,
+                "cigarettes_total": cigarettes_total,
                 "total": total
             })
         
         return {
             "report_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "total_bought": total_bought,
+            "total_to_pay": total_to_pay,
             "total_paid": total_paid,
+            "total_remaining": total_remaining,
             "difference": difference,
             "poef_items": poef_items,
             "leader_breakdown": leader_breakdown,
             "prices": {
                 "drink_price": POEF_DRINK_PRICE,
-                "saf_price": POEF_SAF_PRICE
+                "cigarette_price": POEF_CIGARETTE_PRICE
             }
         } 
