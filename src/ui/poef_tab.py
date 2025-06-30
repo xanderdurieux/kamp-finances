@@ -9,7 +9,7 @@ from datetime import datetime
 
 from models.expense import Expense, ExpenseCategory
 from models.leader import Leader, POEF_DRINK_PRICE, POEF_SAF_PRICE
-from base_components import BaseTab, DataTable, FormDialog
+from .base_components import BaseTab, DataTable, FormDialog
 
 class POEFCountDialog(FormDialog):
     """Dialog for updating POEF counts for leaders."""
